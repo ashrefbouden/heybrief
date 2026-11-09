@@ -17,6 +17,7 @@ describe('architecture rules', () => {
     for (const f of files('src')) expect(readFileSync(f, 'utf8'), f).not.toMatch(/currentUser\(\)/);
   });
   it('no external fetch: data stays on Atlassian', () => {
-    for (const f of files('src')) expect(readFileSync(f, 'utf8'), f).not.toMatch(/\bfetch\(|https?:\/\/(?!example\.atlassian\.net)/);
+    for (const f of files('src'))
+      expect(readFileSync(f, 'utf8'), f).not.toMatch(/\bfetch\(|https?:\/\/(?!example\.atlassian\.net)/);
   });
 });
