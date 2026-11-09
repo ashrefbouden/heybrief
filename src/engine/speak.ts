@@ -90,6 +90,11 @@ const en = {
   driveHeader: (min: number, things: number, decisions: number) =>
     `You have ${min} minutes: ${things} ${things === 1 ? 'thing' : 'things'}${decisions ? `, ${decisions} decision` : ''}.`,
   nothingToday: 'Your plate is clear today.',
+  error: 'HeyBrief could not reach Jira just now. Nothing was changed. Try again in a moment.',
+  slow: 'Jira is slow right now. If you just said yes, check the receipt before trying again.',
+  tooManyWrites: 'That is a lot of changes this hour. I paused writes for safety. Try again later.',
+  tooManyItems: (n: number) => `I can take up to ${n} issues at once. Say the first ${n}.`,
+  empty: 'Say brief me, what is at risk, or a status update like: I finished MP-12.',
 };
 
 export type Phrases = typeof en;
@@ -121,6 +126,11 @@ const fr: Phrases = {
   driveHeader: (min: number, things: number, decisions: number) =>
     `Vous avez ${min} minutes : ${things} ${things === 1 ? 'sujet' : 'sujets'}${decisions ? `, ${decisions} décision` : ''}.`,
   nothingToday: 'Rien d’urgent aujourd’hui.',
+  error: 'HeyBrief n’a pas pu joindre Jira. Rien n’a changé. Réessayez dans un instant.',
+  slow: 'Jira est lent. Si vous venez de dire oui, vérifiez le reçu avant de réessayer.',
+  tooManyWrites: 'Beaucoup de changements cette heure-ci. Écritures en pause par sécurité. Réessayez plus tard.',
+  tooManyItems: (n: number) => `Je peux traiter ${n} tickets à la fois. Donnez les ${n} premiers.`,
+  empty: 'Dites : résumé, quels risques, ou une mise à jour comme : j’ai fini MP-12.',
 };
 
 const ar: Phrases = {
@@ -150,6 +160,11 @@ const ar: Phrases = {
   driveHeader: (min: number, things: number, decisions: number) =>
     `لديك ${min} دقيقة: ${things} مواضيع${decisions ? '، وقرار واحد' : ''}.`,
   nothingToday: 'لا شيء عاجل اليوم.',
+  error: 'تعذّر الوصول إلى Jira الآن. لم يتغير شيء. حاول بعد قليل.',
+  slow: 'Jira بطيء الآن. إن قلت نعم للتو فراجع الإيصال قبل المحاولة مجددا.',
+  tooManyWrites: 'تغييرات كثيرة في هذه الساعة. أوقفت الكتابة احتياطا. حاول لاحقا.',
+  tooManyItems: (n: number) => `يمكنني معالجة ${n} مهام في المرة الواحدة. اذكر أول ${n}.`,
+  empty: 'قل: ملخص، أو ما المخاطر، أو تحديثا مثل: أنهيت MP-12.',
 };
 
 export const T: Record<Lang, Phrases> = { en, fr, ar };

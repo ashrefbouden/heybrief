@@ -21,13 +21,17 @@ src/engine/        no @forge imports; 100% unit tested with fakes
   risk/            radar.ts (6 deterministic signals, score, one fix per risk), speak.ts (speech + "why?")
   brief/drive.ts   drive-sized brief from the Shortcut's ETA
   siri/auth.ts     pairing tokens (SHA-256 hash only), rate limit, body validation
+  permissions.ts   Siri-door permission checks: bulk check, automatic fallback, fail closed
+  receipt.ts       plain-language drive receipt lines
   demo/data.ts     deterministic demo project (exactly 3 risks, judge-script issues)
+  demo/seed.ts     one-click seeder for a real site, with simulated history
   testing/fakes.ts FakeJira, FakeConfluence, MemoryStore, FixedClock
   heybrief.ts      use cases every door calls; route() for free speech
 src/forge/         adapters: jira.ts (REST v3), confluence.ts, store.ts (KVS), llm.ts (@forge/llm + guardrail)
 src/doors/         siri.ts (web trigger), rovo.ts (actions = MCP tools), resolvers.ts (gadget + settings)
 src/frontend/      UI Kit: gadget.tsx, settings.tsx
-test/              Vitest, 106 tests
+test/              Vitest, 132 tests
+docs/              NOV10_CHECKLIST.md (PC-back setup), SIRI_SHORTCUT.md, MVP_MERGE.md
 ```
 
 ## Commands
@@ -41,13 +45,13 @@ forge deploy && forge install --site <your-site>.atlassian.net --product jira
 
 The manifest validates against `@forge/manifest`'s JSON schema. `forge lint` needs `forge login`.
 
-## Status (Nov 9)
+## Status (Nov 9, evening)
 
-Done and tested offline: talk-back parsing and planning, confirm gate, executor with undo, Risk Radar, drive brief, Siri auth, demo data, all speech in EN/FR/AR.
+Done and tested offline: talk-back parsing and planning, confirm gate, executor with undo, Risk Radar, drive brief, Siri auth, demo data and seeder, permission fallback, write budget (30 confirmed batches per user per hour), spoken errors and a 20 s deadline on every door, all speech in EN/FR/AR.
 
 Written but **not yet run against a real site** (needs Ashref's machine and the demo site, M0 Nov 10-11). Verify these first:
 
-1. `POST /rest/api/3/permissions/check` with another user's accountId from `asApp()`. Atlassian documents it as needing Administer Jira for other users. If refused, switch the Siri path to `GET /rest/api/3/user/permission/search?accountId=&permissions=&issueKey=` for writes and project-level browse checks for reads. **This is the main Siri risk.**
+1. `POST /rest/api/3/permissions/check` with another user's accountId from `asApp()`. If it's refused (401/403), `PermissionChecker` switches automatically to `user/permission/search`: per issue for writes, per project for reads. Known gap on that fallback: issue-level security on single issues isn't seen for reads. Check `forge logs` to see which path ran.
 2. Where action functions receive the caller's accountId (`accountIdOf()` in `doors/rovo.ts`).
 3. `issueLink` direction for "Blocks" (`linkBlocks()` in `forge/jira.ts`).
 4. "Flagged" field lookup and value on the demo site.

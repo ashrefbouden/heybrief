@@ -8,6 +8,7 @@ import type { Scope } from '../engine/types';
 import { riskToJson } from '../engine/heybrief';
 import { searchDocs } from '../forge/confluence';
 import { engineFor } from './wiring';
+import { detectLang } from '../engine/lang';
 
 type Payload = Record<string, unknown> & { context?: Record<string, any> };
 
@@ -17,6 +18,9 @@ function accountIdOf(payload: Payload, context?: Record<string, any>): string {
   if (typeof id !== 'string' || !id) throw new Error('No user context: HeyBrief only acts on behalf of a signed-in user.');
   return id;
 }
+
+const langOf = (p: Payload) =>
+  detectLang(typeof p.update === 'string' ? p.update : '', typeof p.language === 'string' ? p.language : undefined);
 
 const str = (v: unknown, max = 2000) => (typeof v === 'string' ? v.slice(0, max) : undefined);
 
@@ -35,9 +39,8 @@ export async function myDay(payload: Payload, context?: Record<string, any>) {
   const accountId = accountIdOf(payload, context);
   const { hb } = await engineFor({ kind: 'user' });
   const eta = Number(payload.minutes);
-  return reply(
-    await hb.brief(accountId, { etaMinutes: Number.isFinite(eta) && eta > 0 ? eta : undefined, lang: str(payload.language, 5) }),
-  );
+  const etaMinutes = Number.isFinite(eta) && eta > 0 ? eta : undefined;
+  return reply(await hb.safely(langOf(payload), () => hb.brief(accountId, { etaMinutes, lang: str(payload.language, 5) })));
 }
 
 export async function readIssue(payload: Payload, context?: Record<string, any>) {
@@ -68,7 +71,7 @@ export async function voiceStandup(payload: Payload, context?: Record<string, an
   const update = str(payload.update);
   if (!update) return reply({ speech: 'Tell me your update, for example: I finished MP-12.' });
   const { hb } = await engineFor({ kind: 'user' });
-  return reply(await hb.talkback(accountId, update, str(payload.language, 5)));
+  return reply(await hb.safely(langOf(payload), () => hb.talkback(accountId, update, str(payload.language, 5))));
 }
 
 export async function riskRadar(payload: Payload, context?: Record<string, any>) {
@@ -83,14 +86,14 @@ export async function riskRadar(payload: Payload, context?: Record<string, any>)
           ? { kind: 'project', projectKey: raw }
           : { kind: 'me', accountId };
   const { hb } = await engineFor({ kind: 'user' });
-  return reply(await hb.radar(accountId, scope, str(payload.language, 5)));
+  return reply(await hb.safely(langOf(payload), () => hb.radar(accountId, scope, str(payload.language, 5))));
 }
 
 export async function explainRisk(payload: Payload, context?: Record<string, any>) {
   const accountId = accountIdOf(payload, context);
   const n = Math.min(3, Math.max(1, Number(payload.rank) || 1));
   const { hb } = await engineFor({ kind: 'user' });
-  return reply(await hb.why(accountId, n, str(payload.language, 5)));
+  return reply(await hb.safely(langOf(payload), () => hb.why(accountId, n, str(payload.language, 5))));
 }
 
 export async function confirmChange(payload: Payload, context?: Record<string, any>) {
@@ -99,7 +102,7 @@ export async function confirmChange(payload: Payload, context?: Record<string, a
   const userReply = str(payload.user_reply, 200);
   if (!id || !userReply) return reply({ speech: 'I need the confirmation id and the user’s exact reply.' });
   const { hb } = await engineFor({ kind: 'user' });
-  return reply(await hb.confirm(accountId, userReply, id));
+  return reply(await hb.safely(langOf(payload), () => hb.confirm(accountId, userReply, id)));
 }
 
 export { riskToJson };

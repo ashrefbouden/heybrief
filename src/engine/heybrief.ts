@@ -7,7 +7,8 @@ import { detectLang } from './lang';
 import type { Deps } from './ports';
 import { DEFAULT_RADAR, runRadar, type RadarConfig, type Risk } from './risk/radar';
 import { explainRisk, speakRadar } from './risk/speak';
-import { parseUpdate } from './talkback/parse';
+import { normaliseKeys, parseUpdate } from './talkback/parse';
+import { T } from './speak';
 import { planTalkback } from './talkback/plan';
 import type { Lang, Scope } from './types';
 import { words } from './words';
@@ -70,7 +71,28 @@ export class HeyBrief {
     const speech = speakRadar(risks, lang);
     if (!risks.length) return { speech, lang, expectReply: false, data: { risks } };
     const pending = await this.proposeFix(accountId, risks[0], speech);
-    return { speech, lang, expectReply: true, pendingId: pending.id, data: { risks: risks.map(toJson) } };
+    return { speech, lang, expectReply: true, pendingId: pending.id, data: { risks: risks.map(riskJson) } };
+  }
+
+  /** Desk gadget: run and cache the radar WITHOUT proposing a fix (must not clobber a pending Siri write). */
+  async scanRisks(accountId: string, scope: Scope): Promise<ReturnType<typeof riskJson>[]> {
+    const issues = await this.deps.jira.searchOpen(scope);
+    const risks = runRadar(issues, this.deps.clock.now(), accountId, this.opts.radar ?? DEFAULT_RADAR);
+    await this.deps.store.set(radarKey(accountId), risks, RADAR_TTL);
+    return risks.map(riskJson);
+  }
+
+  /**
+   * Desk gadget: propose the fix for risk n from the last radar run. The gadget then shows the
+   * read-back and a Confirm button, which calls confirm() with the pending id. Two human clicks.
+   */
+  async proposeRiskFix(accountId: string, n = 1): Promise<Answer> {
+    const risks = await this.deps.store.get<Risk[]>(radarKey(accountId));
+    const risk = risks?.[n - 1];
+    if (!risk) return { speech: 'Run Risk Radar first.', lang: 'en', expectReply: false };
+    const speech = `${risk.rootKey}: ${T.en.want(risk.fix.say.en)}`;
+    const pending = await this.proposeFix(accountId, risk, speech);
+    return { speech, lang: 'en', expectReply: true, pendingId: pending.id, data: riskJson(risk) };
   }
 
   /** "Why?" about the last radar run: risk n (1-based) or the top one. */
@@ -85,7 +107,7 @@ export class HeyBrief {
     }
     // Keep the pending fix alive: the user may say yes after hearing why.
     const pending = await getPending(this.deps, accountId);
-    return { speech: explainRisk(risk, lang), lang, expectReply: !!pending, pendingId: pending?.id, data: toJson(risk) };
+    return { speech: explainRisk(risk, lang), lang, expectReply: !!pending, pendingId: pending?.id, data: riskJson(risk) };
   }
 
   async brief(
@@ -106,7 +128,7 @@ export class HeyBrief {
       lang,
       expectReply: true,
       pendingId: pending.id,
-      data: { keys: b.keys, decision: toJson(b.decision) },
+      data: { keys: b.keys, decision: riskJson(b.decision) },
     };
   }
 
@@ -119,17 +141,45 @@ export class HeyBrief {
    * any other sentence cancels it and is routed as a new request.
    */
   async route(accountId: string, text: string, opts: { lang?: string; etaMinutes?: number } = {}): Promise<Answer> {
+    const clean = text.replace(/\s+/g, ' ').trim().slice(0, 1000);
+    if (!clean) {
+      const lang = detectLang('', opts.lang);
+      return { speech: T[lang].empty, lang, expectReply: false };
+    }
     const pending = await getPending(this.deps, accountId);
     if (pending) {
-      const r = classifyReply(text);
-      if (r !== 'other') return this.confirm(accountId, text, undefined, opts.lang);
+      const r = classifyReply(clean);
+      if (r !== 'other') return this.confirm(accountId, clean, undefined, opts.lang);
+      // "why?" keeps the proposed fix alive; any other new request cancels it.
+      if (WHY.test(clean)) return this.why(accountId, 1, opts.lang, clean);
       await this.deps.store.delete(`pending:${accountId}`);
     }
-    if (WHY.test(text)) return this.why(accountId, 1, opts.lang, text);
-    if (RISK.test(text)) return this.radar(accountId, { kind: 'me', accountId }, opts.lang, text);
-    if (/\b[A-Za-z][A-Za-z0-9]{1,9}[\s-]?\d{1,6}\b/.test(text) && !BRIEF.test(text))
-      return this.talkback(accountId, text, opts.lang);
-    return this.brief(accountId, { etaMinutes: opts.etaMinutes, lang: opts.lang, text });
+    if (WHY.test(clean)) return this.why(accountId, 1, opts.lang, clean);
+    if (RISK.test(clean)) return this.radar(accountId, { kind: 'me', accountId }, opts.lang, clean);
+    const hasKey = /\b[A-Z][A-Z0-9]{1,9}-\d+\b/.test(normaliseKeys(clean, this.opts.projectKeys));
+    if (hasKey && !BRIEF.test(clean)) return this.talkback(accountId, clean, opts.lang);
+    return this.brief(accountId, { etaMinutes: opts.etaMinutes, lang: opts.lang, text: clean });
+  }
+
+  /**
+   * Run any use case with a deadline and spoken errors, so a door never returns silence or a stack trace.
+   * On timeout the work may still finish in the background; confirmations are single-use, so a retried
+   * yes cannot double-write, and the slow message points the user at the receipt.
+   */
+  async safely(lang: Lang, fn: () => Promise<Answer>, deadlineMs = 20_000): Promise<Answer & { failed?: 'timeout' | 'error' }> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<'timeout'>((resolve) => {
+      timer = setTimeout(() => resolve('timeout'), deadlineMs);
+    });
+    try {
+      const out = await Promise.race([fn(), timeout]);
+      if (out === 'timeout') return { speech: T[lang].slow, lang, expectReply: false, failed: 'timeout' };
+      return out;
+    } catch {
+      return { speech: T[lang].error, lang, expectReply: false, failed: 'error' };
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 }
 
@@ -137,7 +187,7 @@ const WHY = words(['why', 'how come', 'pourquoi', 'لماذا', 'ليش', 'عل�
 const RISK = words(['risks?', 'at risk', 'risques?', 'en danger', 'مخاطر', 'خطر', 'المخاطر']);
 const BRIEF = words(['brief(?: me)?', 'my day', 'my plate', 'résumé', 'ma journée', 'ملخص', 'يومي']);
 
-function toJson(r: Risk) {
+function riskJson(r: Risk) {
   return {
     key: r.rootKey,
     summary: r.summary,
@@ -149,4 +199,4 @@ function toJson(r: Risk) {
   };
 }
 
-export { toJson as riskToJson };
+export { riskJson as riskToJson };

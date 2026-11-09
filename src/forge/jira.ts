@@ -12,6 +12,8 @@
 
 import api, { route } from '@forge/api';
 import type { JiraPort } from '../engine/ports';
+import { applyDemoHistory, DEMO_LABEL, DEMO_PROPERTY } from '../engine/demo/seed';
+import { PermissionChecker, type PermissionHttp, type PermissionName } from '../engine/permissions';
 import type { Issue, Person, Priority, Scope, StatusCategory, Transition } from '../engine/types';
 
 type Mode = { kind: 'user' } | { kind: 'app'; accountId: string };
@@ -28,6 +30,7 @@ const FIELDS = [
   'issuelinks',
   'parent',
   'project',
+  'labels',
 ];
 const MAX_RESULTS = 50;
 
@@ -67,14 +70,18 @@ export class ForgeJira implements JiraPort {
       if (l.outwardIssue) blocks.push(l.outwardIssue.key); // this issue "blocks" outwardIssue
       if (l.inwardIssue) blockedBy.push(l.inwardIssue.key); // this issue "is blocked by" inwardIssue
     }
+    // Demo issues carry simulated ages so Risk Radar has history on a freshly seeded site.
+    // Only honoured on issues labelled heybrief-demo; it can only change risk scores, never permissions.
+    const sim = (f.labels ?? []).includes(DEMO_LABEL) ? raw.properties?.[DEMO_PROPERTY] : undefined;
+    const times = applyDemoHistory({ statusChangedAt: f.statuscategorychangedate ?? f.updated, updatedAt: f.updated }, sim);
     return {
       key: raw.key,
       projectKey: f.project?.key ?? raw.key.split('-')[0],
       summary: f.summary ?? '',
       status: f.status?.name ?? '',
       statusCategory: CATEGORY[f.status?.statusCategory?.key] ?? 'todo',
-      statusChangedAt: f.statuscategorychangedate ?? f.updated,
-      updatedAt: f.updated,
+      statusChangedAt: times.statusChangedAt,
+      updatedAt: times.updatedAt,
       priority: (f.priority?.name as Priority) ?? 'Medium',
       assignee: person(f.assignee),
       reporter: person(f.reporter),
@@ -130,7 +137,9 @@ export class ForgeJira implements JiraPort {
   async getIssue(key: string): Promise<Issue | undefined> {
     const flag = await this.flagField();
     const fields = (flag ? [...FIELDS, flag] : FIELDS).join(',');
-    const res = await this.req(route`/rest/api/3/issue/${key}?fields=${fields}`, { headers: { Accept: 'application/json' } });
+    const res = await this.req(route`/rest/api/3/issue/${key}?fields=${fields}&properties=${DEMO_PROPERTY}`, {
+      headers: { Accept: 'application/json' },
+    });
     if (res.status === 404) return undefined;
     if (!res.ok) throw new Error(`Jira ${res.status}`);
     const issue = this.toIssue(await res.json());
@@ -210,39 +219,48 @@ export class ForgeJira implements JiraPort {
     return out.key;
   }
 
-  private async idOf(key: string): Promise<number | undefined> {
-    if (!this.ids.has(key)) {
-      // asApp lookup: only to resolve the id; visibility is decided by the permission check below.
-      const res = await api.asApp().requestJira(route`/rest/api/3/issue/${key}?fields=summary`);
-      if (!res.ok) return undefined;
-      const j: any = await res.json();
-      this.ids.set(key, j.id);
-    }
-    return Number(this.ids.get(key));
-  }
-
-  private async check(accountId: string, keys: string[], permissions: string[]): Promise<Set<string>> {
-    const pairs = await Promise.all(keys.map(async (k) => [k, await this.idOf(k)] as const));
-    const byId = new Map(pairs.filter(([, id]) => id !== undefined).map(([k, id]) => [id!, k]));
-    if (!byId.size) return new Set();
-    const res = await api.asApp().requestJira(route`/rest/api/3/permissions/check`, {
-      method: 'POST',
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accountId, projectPermissions: [{ permissions, issues: [...byId.keys()] }] }),
-    });
-    if (!res.ok) return new Set(); // fail closed
-    const out: any = await res.json();
-    // An issue passes only if every requested permission lists it.
-    const perPerm = (out.projectPermissions ?? []).map((p: any) => new Set<number>(p.issues ?? []));
-    if (perPerm.length < permissions.length) return new Set();
-    return new Set([...byId.entries()].filter(([id]) => perPerm.every((s: Set<number>) => s.has(id))).map(([, k]) => k));
-  }
+  private permHttp: PermissionHttp = {
+    idOf: async (key) => {
+      if (!this.ids.has(key)) {
+        // asApp lookup only resolves the id; visibility is decided by the permission check.
+        const res = await api.asApp().requestJira(route`/rest/api/3/issue/${key}?fields=summary`);
+        if (!res.ok) return undefined;
+        const j: any = await res.json();
+        this.ids.set(key, j.id);
+      }
+      return Number(this.ids.get(key));
+    },
+    bulk: async (accountId, issueIds, permissions) => {
+      const res = await api.asApp().requestJira(route`/rest/api/3/permissions/check`, {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountId, projectPermissions: [{ permissions, issues: issueIds }] }),
+      });
+      if (!res.ok) return { ok: false, status: res.status };
+      const out: any = await res.json();
+      const granted = new Map<PermissionName, Set<number>>();
+      for (const p of out.projectPermissions ?? []) granted.set(p.permission, new Set<number>((p.issues ?? []).map(Number)));
+      return { ok: true, granted };
+    },
+    userHas: async (accountId, permissions, target) => {
+      const perms = permissions.join(',');
+      const path =
+        'issueKey' in target
+          ? route`/rest/api/3/user/permission/search?accountId=${accountId}&permissions=${perms}&issueKey=${target.issueKey}&maxResults=1`
+          : route`/rest/api/3/user/permission/search?accountId=${accountId}&permissions=${perms}&projectKey=${target.projectKey}&maxResults=1`;
+      const res = await api.asApp().requestJira(path, { headers: { Accept: 'application/json' } });
+      if (!res.ok) return false;
+      const users: any[] = await res.json();
+      return users.some((u) => u.accountId === accountId);
+    },
+  };
+  private perms = new PermissionChecker(this.permHttp);
 
   async canEdit(accountId: string, key: string) {
-    return (await this.check(accountId, [key], ['EDIT_ISSUES', 'TRANSITION_ISSUES'])).has(key);
+    return (await this.perms.allowed(accountId, [key], ['EDIT_ISSUES', 'TRANSITION_ISSUES'], 'write')).has(key);
   }
 
   async canBrowse(accountId: string, keys: string[]) {
-    return this.check(accountId, keys, ['BROWSE_PROJECTS']);
+    return this.perms.allowed(accountId, keys, ['BROWSE_PROJECTS'], 'read');
   }
 }

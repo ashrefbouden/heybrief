@@ -7,6 +7,7 @@
 
 import type { WebTriggerRequest, WebTriggerResponse } from '@forge/api';
 import { authenticate, parseSiriBody } from '../engine/siri/auth';
+import { detectLang } from '../engine/lang';
 import { forgeStore } from '../forge/store';
 import { engineFor } from './wiring';
 
@@ -34,7 +35,9 @@ export async function siriHandler(req: WebTriggerRequest): Promise<WebTriggerRes
 
   try {
     const { hb } = await engineFor({ kind: 'app', accountId: auth.accountId });
-    const a = await hb.route(auth.accountId, body.text, { lang: body.lang, etaMinutes: body.etaMinutes });
+    const lang = detectLang(body.text, body.lang);
+    const a = await hb.safely(lang, () => hb.route(auth.accountId, body.text, { lang: body.lang, etaMinutes: body.etaMinutes }));
+    if (a.failed) console.error('siri request', a.failed);
     return json(200, { speech: a.speech, lang: a.lang, expectReply: a.expectReply });
   } catch (e) {
     // Never leak internals to the phone; the log has the detail.

@@ -16,6 +16,9 @@ export interface TalkbackPlan {
   changeCount: number;
 }
 
+/** A spoken update touching more issues than this is refused: too long to read back safely. */
+export const MAX_ITEMS = 6;
+
 export const AUDIT_SUFFIX = (accountId: string) => `(via HeyBrief voice update, confirmed by [~accountid:${accountId}])`;
 
 export async function planTalkback(
@@ -29,6 +32,16 @@ export async function planTalkback(
   const spoken: string[] = [];
   const problems: string[] = [];
   const standupLines: string[] = [];
+
+  if (parsed.items.length > MAX_ITEMS) {
+    return {
+      ops: [],
+      standupLines: [],
+      readback: t.tooManyItems(MAX_ITEMS),
+      problems: [t.tooManyItems(MAX_ITEMS)],
+      changeCount: 0,
+    };
+  }
 
   for (const item of parsed.items) {
     const issue = await jira.getIssue(item.key);

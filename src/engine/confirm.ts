@@ -6,12 +6,15 @@
 // - Anything other than a clear yes cancels it.
 
 import { executeOps } from './execute';
+import { viewReceipt } from './receipt';
 import type { Deps } from './ports';
 import { T } from './speak';
 import { startsWithWord, words } from './words';
 import type { Lang, OpResult, Op, PendingAction, PendingKind, Receipt } from './types';
 
 export const CONFIRM_TTL_SECONDS = 120;
+/** Confirmed write batches per user per hour. Stops a misbehaving agent loop from spamming Jira. */
+export const MAX_CONFIRMED_PER_HOUR = 30;
 const RECEIPT_TTL_SECONDS = 7 * 24 * 3600;
 const MAX_RECEIPTS = 20;
 
@@ -138,10 +141,20 @@ export async function resolvePending(
     return { status: 'cancelled', speech: t.cancelled };
   }
 
+  // Write budget: checked before claiming so a refused yes can be retried next hour.
+  const hour = Math.floor(deps.clock.now().getTime() / 3_600_000);
+  const budgetKey = `writes:${input.accountId}:${hour}`;
+  const used = (await deps.store.get<number>(budgetKey)) ?? 0;
+  if (used >= MAX_CONFIRMED_PER_HOUR) {
+    await deps.store.delete(pendingKey(input.accountId));
+    return { status: 'cancelled', speech: t.tooManyWrites };
+  }
+
   // Claim before executing: a duplicate "yes" (Siri retry, double tap) cannot run the writes twice.
   const claimed = await deps.store.setIfAbsent(claimKey(raw.id), deps.clock.now().toISOString(), CONFIRM_TTL_SECONDS * 5);
   if (!claimed) return { status: 'expired', speech: t.expired };
   await deps.store.delete(pendingKey(input.accountId));
+  await deps.store.set(budgetKey, used + 1, 7200);
 
   const results = await executeOps(raw.ops, deps, input.accountId);
   const receipt: Receipt = {
@@ -193,4 +206,10 @@ export async function undoReceipt(deps: Deps, accountId: string, receiptId: stri
     .map((x) => x.undo!)
     .reverse();
   return executeOps(undoOps, deps, accountId);
+}
+
+/** Receipts with an undone flag, for the gadget. */
+export async function listReceiptViews(deps: Pick<Deps, 'store'>, accountId: string) {
+  const list = await listReceipts(deps, accountId);
+  return Promise.all(list.map(async (r) => viewReceipt(r, (await deps.store.get(`undone:${r.id}`)) !== undefined)));
 }
