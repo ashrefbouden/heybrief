@@ -36,7 +36,7 @@ src/doors/         rovo.ts (actions = MCP tools), resolvers.ts (voice page, gadg
 src/frontend/      UI Kit: gadget.tsx, settings.tsx
   voice/           voice console (plain DOM): ui.ts, listeners.ts (dictation / Web Speech), forge.ts, local.ts + proto.ts
 scripts/           build-voice.mjs: builds static/voice/build (Forge) and dist/heybrief-voice.html (prototype)
-test/              Vitest, 135 tests
+test/              Vitest, 161 tests
 docs/              NOV10_CHECKLIST.md (PC-back setup), ROADMAP_SIRI.md, MVP_MERGE.md
 ```
 
