@@ -156,7 +156,7 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
   const side = el('aside', 'hb-side');
   const boardHead = el('h2', '', 'Jira board');
   const board = el('div', 'hb-board');
-  const recHead = el('h2', '', 'Drive receipt');
+  const recHead = el('h2', '', 'Receipt');
   const receipts = el('div', 'hb-receipts');
   side.append(boardHead, board, recHead, receipts);
 

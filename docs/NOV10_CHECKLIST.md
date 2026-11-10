@@ -92,7 +92,7 @@ If `forge deploy` complains about imports, send me the full output. Checking how
 2. Open **your profile > Personal settings > HeyBrief**. Type `MP` under Demo data and click **Load demo data**. **Send me** what it shows.
 3. Open **Apps > HeyBrief** in the Jira top bar (Chrome). Click the mic and allow it. Say `What's at risk this week?`, then `why?`, then click **Yes, do it**. If the mic doesn't appear, type instead and tell me.
 4. Say the talk-back line it gave you in step 2, then say `yes`. Watch the board on the right change, then check the issues in Jira.
-5. Try **Undo** on the receipt in the page. Then add the **HeyBrief drive receipt** gadget to a dashboard and check it shows the same receipt.
+5. Try **Undo** on the receipt in the page. Then add the **HeyBrief receipt** gadget to a dashboard and check it shows the same receipt.
 6. Open Rovo, pick the **HeyBrief** agent, and repeat step 3 in chat.
 7. Run `forge logs` and **send me** anything red.
 

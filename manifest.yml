@@ -163,8 +163,8 @@ modules:
 
   jira:dashboardGadget:
     - key: drive-receipt
-      title: HeyBrief drive receipt
-      description: What you heard and approved on the way in, with undo, plus Risk Radar.
+      title: HeyBrief receipt
+      description: What you said and approved by voice, with undo, plus Risk Radar.
       thumbnail: resource:static;icon.svg
       resource: gadget
       render: native
