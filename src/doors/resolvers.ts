@@ -1,15 +1,15 @@
-// Resolvers for the UI Kit surfaces: the drive-receipt gadget and the settings/pairing page.
+// Resolvers for the UI surfaces: the HeyBrief voice page, the drive-receipt gadget and the settings page.
+// Everything runs as the signed-in user, so Jira enforces their permissions on every read and write.
 
 import Resolver from '@forge/resolver';
-import { webTrigger } from '@forge/api';
 import { listReceiptViews, undoReceipt } from '../engine/confirm';
-import { issueToken, revokeToken } from '../engine/siri/auth';
+import type { Lang } from '../engine/types';
+import type { ForgeJira } from '../forge/jira';
 import { forgeStore } from '../forge/store';
 import { engineFor, loadSettings, saveSettings } from './wiring';
 import { isJiraAdmin, seedDemoProject } from './seed';
 
 const resolver = new Resolver();
-const clock = { now: () => new Date() };
 
 function me(context: Record<string, any>): string {
   const id = context?.accountId;
@@ -18,6 +18,61 @@ function me(context: Record<string, any>): string {
 }
 
 const str = (v: unknown, max = 100) => (typeof v === 'string' ? v.slice(0, max) : '');
+
+// ---- Voice page ----
+const LANGS = new Set(['en', 'fr', 'ar']);
+const langOf = (v: unknown): Lang | undefined => (typeof v === 'string' && LANGS.has(v) ? (v as Lang) : undefined);
+const turn = (a: { speech: string; lang: Lang; pendingId?: string; expectReply: boolean; failed?: string }) => ({
+  speech: a.speech,
+  lang: a.lang,
+  pendingId: a.pendingId,
+  expectReply: a.expectReply,
+  failed: a.failed,
+});
+
+/** One spoken or typed sentence: brief, risks, why, a talk-back update, or yes/no to a pending change. */
+resolver.define('ask', async ({ payload, context }) => {
+  const p = payload as any;
+  const lang = langOf(p?.lang);
+  const minutes = Number(p?.minutes);
+  const { hb } = await engineFor({ kind: 'user' });
+  return turn(
+    await hb.safely(lang ?? 'en', () =>
+      hb.route(me(context), str(p?.text, 500), {
+        lang,
+        etaMinutes: Number.isFinite(minutes) && minutes > 0 && minutes <= 120 ? minutes : undefined,
+      }),
+    ),
+  );
+});
+
+/** Confirm or cancel the pending change shown on screen. The pendingId must match, so a stale card cannot confirm a newer proposal. */
+resolver.define('decide', async ({ payload, context }) => {
+  const p = payload as any;
+  const lang = langOf(p?.lang);
+  const { hb } = await engineFor({ kind: 'user' });
+  return turn(
+    await hb.safely(lang ?? 'en', () => hb.confirm(me(context), p?.yes === true ? 'yes' : 'no', str(p?.pendingId), lang)),
+  );
+});
+
+resolver.define('board', async ({ context }) => {
+  me(context);
+  const { deps, settings } = await engineFor({ kind: 'user' });
+  const issues = await (deps.jira as ForgeJira).searchBoard(settings.projectKeys[0] ?? 'MP');
+  return issues.map((i) => ({
+    key: i.key,
+    summary: i.summary,
+    status: i.status,
+    statusCategory: i.statusCategory,
+    assignee: i.assignee?.displayName,
+    priority: i.priority,
+    flagged: i.flagged,
+    dueDate: i.dueDate,
+    blockedBy: i.blockedBy,
+    blocks: i.blocks,
+  }));
+});
 
 // ---- Drive receipt gadget ----
 resolver.define('getReceipts', async ({ context }) => listReceiptViews({ store: forgeStore }, me(context)));
@@ -50,19 +105,7 @@ resolver.define('resolvePending', async ({ payload, context }) => {
   return { speech: a.speech };
 });
 
-// ---- Settings / pairing ----
-/** Pair a phone: returns the plain token once, plus the web trigger URL for the Shortcut. */
-resolver.define('pairPhone', async ({ context }) => {
-  const token = await issueToken(forgeStore, clock, me(context));
-  const url = await webTrigger.getUrl('siri');
-  return { token, url };
-});
-
-resolver.define('unpairPhone', async ({ context }) => {
-  await revokeToken(forgeStore, me(context));
-  return { ok: true };
-});
-
+// ---- Settings ----
 resolver.define('getSettings', async ({ context }) => ({ ...(await loadSettings()), isAdmin: await isJiraAdmin(me(context)) }));
 
 resolver.define('saveSettings', async ({ payload, context }) => {

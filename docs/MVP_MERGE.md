@@ -2,7 +2,7 @@
 
 The source is `F:\jira-voice-assistant`: about 1,620 lines of TypeScript, no runtime dependencies, and 43 node:test cases. I reviewed it read-only on Oct 30. The target is this repo.
 
-The cloud build already covers the new pieces: talk-back, the confirm gate, Risk Radar, the drive brief, Siri auth and the demo data. The MVP brings the parts it's best at: intent routing, ranking, speech templates, and the polished brief wording. Estimated effort is about 14 hours, done by me as one PR on the `heybrief` repo once the MVP is on GitHub.
+The cloud build already covers the new pieces: talk-back, the confirm gate, Risk Radar, the drive brief, the voice page and the demo data. The MVP brings the parts it's best at: intent routing, ranking, speech templates, and the polished brief wording. Estimated effort is about 14 hours, done by me as one PR on the `heybrief` repo once the MVP is on GitHub.
 
 ## File by file
 
@@ -17,7 +17,7 @@ The cloud build already covers the new pieces: talk-back, the confirm gate, Risk
 | `atlassian.ts` | Adapt | `src/forge/jira.ts`, `src/forge/confluence.ts` | Replace `fetch` and Basic auth with `requestJira` / `requestConfluence`. Create a new client per request, because the MVP caches `/myself`. On the Siri path, JQL must use the explicit `accountId`, never `currentUser()`. |
 | `llm.ts` | Replace | `src/forge/llm.ts` | Already done. Groq becomes `@forge/llm` with the same guardrail. Keep the MVP system prompt if it's better and diff the two. |
 | `api.ts`, `server.ts`, `worker.ts`, `config.ts`, `check.ts`, `push-secrets.ts`, `wrangler.jsonc`, `sw.js` | Drop | | The server, worker, deploy and secrets code are all replaced by Forge modules. |
-| `public/app.js` (Web Speech) | Optional | `src/frontend/gadget.tsx` | Adds a "Listen to my day" speech button. UI Kit can't use the Web Speech API, so it would need a small Custom UI resource. This is a "Should" item; decide by Nov 23. |
+| `public/app.js` (Web Speech) | Compare | `src/frontend/voice/` | Done differently: the Forge voice page already uses Web Speech in Custom UI. Borrow any MVP tricks (voice picking, retry on no-speech). |
 | Tests (43 node:test) | Port about 25 | `test/mvp-*.test.ts` | Change `node:test` to Vitest: `test` becomes `it`, and `assert.equal(a,b)` becomes `expect(a).toBe(b)`. Drop the tests for dropped files. |
 
 ## Order (one PR, separate commits)

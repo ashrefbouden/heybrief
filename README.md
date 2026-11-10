@@ -1,15 +1,19 @@
 # HeyBrief
 
-**Talk to Jira, and Jira changes.** A hands-free Forge app: report status from the car and Jira updates itself after your spoken yes; Risk Radar proposes the fix, not just the alarm. Built for Atlassian Codegeist 2026 (Business Teams track, Best app with Atlassian MCP).
+**Talk to Jira, and Jira changes.** A voice-first Forge app: say your status out loud and Jira updates itself after your yes; Risk Radar proposes the fix, not just the alarm. Built for Atlassian Codegeist 2026 (Business Teams track, Best app with Atlassian MCP).
 
-One engine, three ways in:
+One engine, four ways in, all running as the signed-in user so Jira enforces permissions:
 
-| Door | Module | Runs as | Who checks permissions |
-|---|---|---|---|
-| Siri / CarPlay | `webtrigger` (`siri`) + pairing token | `asApp()` | HeyBrief, via the bulk permission check (fail closed) |
-| Rovo chat | `rovo:agent` + 7 `action`s | `asUser()` | Jira |
-| Claude / any MCP client | `rovo:mcp` (same 7 actions) | `asUser()` | Jira |
-| Desk | `jira:dashboardGadget` (drive receipt + Risk Radar), `jira:personalSettingsPage` (pairing) | `asUser()` | Jira |
+| Door | Module | Runs as |
+|---|---|---|
+| Voice page in Jira | `jira:globalPage` (Custom UI): mic, spoken answers, Yes/Cancel, live board, receipt | `asUser()` |
+| Rovo chat | `rovo:agent` + 7 `action`s | `asUser()` |
+| Claude / any MCP client | `rovo:mcp` (same 7 actions) | `asUser()` |
+| Desk | `jira:dashboardGadget` (drive receipt + Risk Radar), `jira:personalSettingsPage` (projects, demo data) | `asUser()` |
+
+Roadmap, not deployed: a Siri / CarPlay door (web trigger + pairing token, `asApp()` with fail-closed permission checks). The code is kept and tested (`src/doors/siri.ts`, `src/engine/siri/auth.ts`, `src/engine/permissions.ts`) but not exported or in the manifest. See `docs/ROADMAP_SIRI.md`.
+
+**Try it without Jira:** `npm run build` writes `dist/heybrief-voice.html`, the same voice console running the real engine over a simulated demo project. Open it in Chrome.
 
 ## Layout
 
@@ -19,44 +23,47 @@ src/engine/        no @forge imports; 100% unit tested with fakes
   confirm.ts       confirm-before-write gate: 2-min expiry, single use, per user, anything but yes cancels
   execute.ts       runs ops, re-checks permission, resolves transitions at run time, records undo
   risk/            radar.ts (6 deterministic signals, score, one fix per risk), speak.ts (speech + "why?")
-  brief/drive.ts   drive-sized brief from the Shortcut's ETA
-  siri/auth.ts     pairing tokens (SHA-256 hash only), rate limit, body validation
-  permissions.ts   Siri-door permission checks: bulk check, automatic fallback, fail closed
+  brief/drive.ts   brief sized to the minutes you have
+  siri/auth.ts     roadmap: pairing tokens (SHA-256 hash only), rate limit, body validation
+  permissions.ts   roadmap (Siri door): bulk check, automatic fallback, fail closed
   receipt.ts       plain-language drive receipt lines
   demo/data.ts     deterministic demo project (exactly 3 risks, judge-script issues)
   demo/seed.ts     one-click seeder for a real site, with simulated history
   testing/fakes.ts FakeJira, FakeConfluence, MemoryStore, FixedClock
   heybrief.ts      use cases every door calls; route() for free speech
 src/forge/         adapters: jira.ts (REST v3), confluence.ts, store.ts (KVS), llm.ts (@forge/llm + guardrail)
-src/doors/         siri.ts (web trigger), rovo.ts (actions = MCP tools), resolvers.ts (gadget + settings)
+src/doors/         rovo.ts (actions = MCP tools), resolvers.ts (voice page, gadget, settings), siri.ts (roadmap)
 src/frontend/      UI Kit: gadget.tsx, settings.tsx
-test/              Vitest, 132 tests
-docs/              NOV10_CHECKLIST.md (PC-back setup), SIRI_SHORTCUT.md, MVP_MERGE.md
+  voice/           voice console (plain DOM): ui.ts, listeners.ts (dictation / Web Speech), forge.ts, local.ts + proto.ts
+scripts/           build-voice.mjs: builds static/voice/build (Forge) and dist/heybrief-voice.html (prototype)
+test/              Vitest, 135 tests
+docs/              NOV10_CHECKLIST.md (PC-back setup), ROADMAP_SIRI.md, MVP_MERGE.md
 ```
 
 ## Commands
 
 ```
 npm install
-npm run check        # typecheck + tests
+npm run check        # typecheck + tests + build the voice page (forge deploy needs static/voice/build)
 forge register       # first time only: writes the real app.id into manifest.yml
 forge deploy && forge install --site <your-site>.atlassian.net --product jira
 ```
 
 The manifest validates against `@forge/manifest`'s JSON schema. `forge lint` needs `forge login`.
 
-## Status (Nov 9, evening)
+## Status (Nov 10)
 
-Done and tested offline: talk-back parsing and planning, confirm gate, executor with undo, Risk Radar, drive brief, Siri auth, demo data and seeder, permission fallback, write budget (30 confirmed batches per user per hour), spoken errors and a 20 s deadline on every door, all speech in EN/FR/AR.
+Done and tested offline: voice page and browser prototype, talk-back parsing and planning, confirm gate, executor with undo, Risk Radar, drive brief, demo data and seeder, permission fallback, write budget (30 confirmed batches per user per hour), spoken errors and a 20 s deadline on every door, all speech in EN/FR/AR.
 
 Written but **not yet run against a real site** (needs Ashref's machine and the demo site, M0 Nov 10-11). Verify these first:
 
-1. `POST /rest/api/3/permissions/check` with another user's accountId from `asApp()`. If it's refused (401/403), `PermissionChecker` switches automatically to `user/permission/search`: per issue for writes, per project for reads. Known gap on that fallback: issue-level security on single issues isn't seen for reads. Check `forge logs` to see which path ran.
+1. Microphone inside the Forge page. Custom UI runs in an iframe; if the browser refuses speech recognition there, the page hides the mic and typing still works. Browser or OS dictation (Win+H, Fn Fn on Mac) into the text box is the fallback.
 2. Where action functions receive the caller's accountId (`accountIdOf()` in `doors/rovo.ts`).
 3. `issueLink` direction for "Blocks" (`linkBlocks()` in `forge/jira.ts`).
 4. "Flagged" field lookup and value on the demo site.
 5. `@forge/llm` `list()` response shape (model picked by name, no hard-coded id).
-6. Whether the bundler is happy with extensionless imports (we use them; the MVP's `.ts` imports should be converted when ported).
+6. The `board` resolver's JQL on the demo project, and text-to-speech voices on the demo machine.
+7. Whether the bundler is happy with extensionless imports (we use them; the MVP's `.ts` imports should be converted when ported).
 
 ## Merging the MVP
 

@@ -76,7 +76,7 @@ cd F:\
 git clone https://github.com/<you>/heybrief.git
 cd heybrief
 npm install
-npm run check                       # typecheck + 129 tests; must be all green
+npm run check                       # typecheck + tests + builds the voice page; must be all green
 forge register --accept-terms       # writes the real app id into manifest.yml
 git add manifest.yml; git commit -m "Register Forge app"; git push
 forge deploy
@@ -90,10 +90,11 @@ If `forge deploy` complains about imports, send me the full output. Checking how
 
 1. In Jira, create a project with key `MP` (Scrum, company-managed if it offers the choice). Create a Confluence space with key `MP`.
 2. Open **your profile > Personal settings > HeyBrief**. Type `MP` under Demo data and click **Load demo data**. **Send me** what it shows.
-3. Open Rovo, pick the **HeyBrief** agent, and say: `What's at risk this week?`, then `why?`, then `yes`.
-4. Say the talk-back line it gave you in step 2, then `yes`. Check the issues in Jira.
-5. Add the **HeyBrief drive receipt** gadget to a dashboard. Try **Undo**.
-6. Run `forge logs` and **send me** anything red.
+3. Open **Apps > HeyBrief** in the Jira top bar (Chrome). Click the mic and allow it. Say `What's at risk this week?`, then `why?`, then click **Yes, do it**. If the mic doesn't appear, type instead and tell me.
+4. Say the talk-back line it gave you in step 2, then say `yes`. Watch the board on the right change, then check the issues in Jira.
+5. Try **Undo** on the receipt in the page. Then add the **HeyBrief drive receipt** gadget to a dashboard and check it shows the same receipt.
+6. Open Rovo, pick the **HeyBrief** agent, and repeat step 3 in chat.
+7. Run `forge logs` and **send me** anything red.
 
 ## 7. The five checks I can't do from the cloud
 
@@ -105,18 +106,18 @@ forge logs --since 15m
 
 That covers four of the five:
 
-- **Permission check from the app:** whether the bulk check works or falls back (needs Siri, so we'll do it after step 8).
+- **Mic in the Jira page:** whether Chrome allows speech recognition inside the Forge page. If it doesn't, we demo with typing plus Windows dictation (Win+H) and I'll look at a fix.
 - **Who the action thinks you are:** if Rovo says "No user context", tell me.
 - **Blocker link direction:** in Jira, open the demo blocked issue. It should say "blocks" the two login issues.
 - **Flagged field:** the blocked issue should show the red flag.
 
 The fifth is whether Forge AI is turned on for the site. If answers sound robotic but correct, it's off. That's fine, because the templates still work.
 
-## 8. Siri (Nov 11, with me)
+## 8. Siri
 
-Follow [SIRI_SHORTCUT.md](SIRI_SHORTCUT.md).
+Moved to the roadmap. Nothing to do. The old steps are in [ROADMAP_SIRI.md](ROADMAP_SIRI.md).
 
 ## Don't
 
-- Don't commit `.env` or tokens. The pairing token is shown once in HeyBrief settings and goes into the Shortcut only.
+- Don't commit `.env` or tokens.
 - Don't submit on Devpost. That's the Nov 30 step, and only on your yes.

@@ -117,21 +117,34 @@ export class ForgeJira implements JiraPort {
     )
       throw new Error('invalid scope'); // keys go into JQL: validate, never interpolate free text
 
-    const out = await this.json<{ issues: any[] }>(route`/rest/api/3/search/jql`, {
-      method: 'POST',
-      body: JSON.stringify({
-        jql: `${jql} ORDER BY updated DESC`,
-        fields: flag ? [...FIELDS, flag] : FIELDS,
-        maxResults: MAX_RESULTS,
-      }),
-    });
-    const issues = out.issues.map((r) => this.toIssue(r));
+    const issues = await this.runJql(`${jql} ORDER BY updated DESC`, flag);
     if (this.mode.kind === 'user') return issues;
     const visible = await this.canBrowse(
       this.mode.accountId,
       issues.map((i) => i.key),
     );
     return issues.filter((i) => visible.has(i.key));
+  }
+
+  /** Board for the voice page: open issues plus anything finished in the last 7 days. User mode only. */
+  async searchBoard(projectKey: string): Promise<Issue[]> {
+    if (this.mode.kind !== 'user') throw new Error('board is user-mode only');
+    if (!/^[A-Z][A-Z0-9_]{0,19}$/.test(projectKey)) throw new Error('invalid project');
+    const flag = await this.flagField();
+    return this.runJql(`project = "${projectKey}" AND (statusCategory != Done OR updated >= -7d) ORDER BY key ASC`, flag);
+  }
+
+  private async runJql(jql: string, flag: string | null): Promise<Issue[]> {
+    const out = await this.json<{ issues: any[] }>(route`/rest/api/3/search/jql`, {
+      method: 'POST',
+      body: JSON.stringify({
+        jql,
+        fields: flag ? [...FIELDS, flag] : FIELDS,
+        properties: [DEMO_PROPERTY],
+        maxResults: MAX_RESULTS,
+      }),
+    });
+    return out.issues.map((r) => this.toIssue(r));
   }
 
   async getIssue(key: string): Promise<Issue | undefined> {

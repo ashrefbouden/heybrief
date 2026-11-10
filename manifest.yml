@@ -153,12 +153,13 @@ modules:
         - explain-risk
         - confirm-change
 
-  webtrigger:
-    - key: siri
-      function: siri-fn
-      urlFormat: v2
-      response:
-        type: dynamic
+  jira:globalPage:
+    - key: heybrief-voice
+      title: HeyBrief
+      icon: resource:static;icon.svg
+      resource: voice
+      resolver:
+        function: ui-resolver-fn
 
   jira:dashboardGadget:
     - key: drive-receipt
@@ -184,8 +185,6 @@ modules:
         - claude
 
   function:
-    - key: siri-fn
-      handler: index.siriHandler
     - key: my-day-fn
       handler: index.myDay
     - key: read-issue-fn
@@ -208,6 +207,8 @@ resources:
     path: src/frontend/gadget.tsx
   - key: settings
     path: src/frontend/settings.tsx
+  - key: voice
+    path: static/voice/build
   - key: static
     path: static
 

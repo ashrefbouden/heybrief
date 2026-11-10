@@ -1,3 +1,5 @@
+> **Roadmap, not in v1 (decided Nov 10, 2026).** v1 ships voice in the browser: the HeyBrief page in Jira, plus Rovo and MCP. This page is kept for the Siri / CarPlay door after Codegeist. Its server code (`src/doors/siri.ts`, `src/engine/siri/auth.ts`, `src/engine/permissions.ts`) is tested but not exported or in the manifest. To turn it on: export `siriHandler` from `src/index.ts`, add the `siri` web trigger and `siri-fn` back to `manifest.yml`, and restore the pairing section in `src/frontend/settings.tsx` (git history, commit d5d1338).
+
 # Build the HeyBrief Siri Shortcut
 
 This takes about 25 minutes on the iPhone, using the Shortcuts app (iOS 17 or newer). You'll end up with:

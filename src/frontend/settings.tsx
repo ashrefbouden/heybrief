@@ -1,5 +1,5 @@
-// HeyBrief settings: pair a phone for Siri (token shown once), unpair, projects, and the
-// one-click demo data loader (admins only).
+// HeyBrief settings: where to talk to HeyBrief, projects, and the one-click demo data loader (admins only).
+// Siri pairing is on the roadmap (docs/ROADMAP_SIRI.md); its code is kept but not wired.
 import React, { useEffect, useState } from 'react';
 import ForgeReconciler, { Button, Code, Heading, SectionMessage, Stack, Text, Textfield } from '@forge/react';
 import { call } from './call';
@@ -20,7 +20,6 @@ interface SeedResult {
 
 function App() {
   const [settings, setSettings] = useState<Settings>();
-  const [pair, setPair] = useState<{ token: string; url: string }>();
   const [projects, setProjects] = useState('');
   const [demoProject, setDemoProject] = useState('');
   const [seed, setSeed] = useState<SeedResult>();
@@ -55,34 +54,8 @@ function App() {
         </SectionMessage>
       )}
 
-      <Heading as="h3">Siri</Heading>
-      <Text>Pair your iPhone. The token is shown once; pairing again revokes the old one.</Text>
-      <Button appearance="primary" isDisabled={busy} onClick={() => run(async () => setPair(await call('pairPhone')))}>
-        Pair a phone
-      </Button>
-      {pair && (
-        <SectionMessage appearance="warning" title="Copy these now. They won't be shown again.">
-          <Stack space="space.100">
-            <Text>Web address for the Shortcut:</Text>
-            <Code>{pair.url}</Code>
-            <Text>Your token (treat it like a password):</Text>
-            <Code>{pair.token}</Code>
-          </Stack>
-        </SectionMessage>
-      )}
-      <Button
-        appearance="subtle"
-        isDisabled={busy}
-        onClick={() =>
-          run(async () => {
-            await call('unpairPhone');
-            setPair(undefined);
-            setNote({ kind: 'success', text: 'Phone unpaired. The old token no longer works.' });
-          })
-        }
-      >
-        Unpair
-      </Button>
+      <Heading as="h3">Talk to HeyBrief</Heading>
+      <Text>Open Apps, then HeyBrief, in the top bar for the voice page. Or ask the HeyBrief agent in Rovo chat.</Text>
 
       {settings?.isAdmin && (
         <>
@@ -125,7 +98,7 @@ function App() {
           {seed && !seed.alreadyLoaded && (
             <SectionMessage appearance="information" title="Try it">
               <Stack space="space.100">
-                <Text>In Rovo, open HeyBrief and say:</Text>
+                <Text>On the HeyBrief page (Apps menu) or in Rovo chat, say:</Text>
                 <Code>{seed.script.risk}</Code>
                 <Code>{seed.script.talkback}</Code>
                 {seed.notes.map((n, i) => (

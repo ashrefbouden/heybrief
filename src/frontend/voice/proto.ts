@@ -1,0 +1,31 @@
+// Entry for the in-browser prototype (published as a claude.ai Artifact with the dictation capability).
+
+import { dictationListener, webSpeechListener } from './listeners';
+import { localBackend } from './local';
+import { mountConsole } from './ui';
+import type { Listener } from './types';
+
+const CHIPS = [
+  { label: 'Brief me', text: 'Brief me' },
+  { label: "What's at risk?", text: "What's at risk this week?" },
+  { label: 'Why?', text: 'Why?' },
+  { label: 'Talk-back update', text: "I finished MP-12, MP-15 is blocked on legal, I'll pick up MP-9 today" },
+  { label: 'En français', text: "J'ai terminé MP-12, MP-15 est bloqué par le juridique" },
+  { label: 'بالعربية', text: 'ما هي المخاطر هذا الأسبوع؟' },
+];
+
+const root = document.getElementById('app')!;
+const backend = localBackend();
+const opts = { chips: CHIPS, subtitle: 'Talk to Jira, and Jira changes.' };
+const claude = (window as unknown as { claude?: { use(n: string): Promise<unknown> } }).claude;
+
+// Inside claude.ai the frame refuses the browser's own speech API, so typing first, then platform dictation
+// if this view offers it. Opened as a plain file, use the browser's speech recognition.
+mountConsole(root, backend, claude ? null : webSpeechListener(), opts);
+claude
+  ?.use('dictation')
+  .then((d) => {
+    const l: Listener | null = dictationListener(d as Parameters<typeof dictationListener>[0]);
+    if (l) mountConsole(root, backend, l, opts);
+  })
+  .catch(() => undefined);
