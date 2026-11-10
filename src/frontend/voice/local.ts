@@ -66,6 +66,7 @@ export function localBackend(): Backend {
           dueDate: i.dueDate,
           blockedBy: i.blockedBy,
           blocks: i.blocks,
+          mine: i.assignee?.accountId === ME.accountId,
         }));
     },
     receipts: () => listReceiptViews(deps, ME.accountId),

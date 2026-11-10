@@ -218,7 +218,7 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
   convo.append(alertBar, log, confirmCard, chips, bar, hint);
 
   const side = el('aside', 'hb-side');
-  const boardHead = el('h2', '', 'Jira board');
+  const boardHead = el('h2', '', 'Team pulse');
   const board = el('div', 'hb-board');
   const recHead = el('h2', '', 'Receipt');
   const receipts = el('div', 'hb-receipts');
@@ -495,43 +495,123 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
     renderReceipts(recs);
   }
 
+  /**
+   * HeyBrief's own view of the project, not a copy of a Jira board: what is stuck and what it holds up,
+   * what is late, your plate, and who carries the load. Changed rows flash after each answer.
+   */
   function renderBoard(issues: BoardIssue[]) {
     const changed = new Set<string>();
     const next = new Map<string, string>();
     for (const i of issues) {
-      const sig = [i.status, i.assignee ?? '', i.flagged, i.blockedBy.join(',')].join('|');
+      const sig = [i.status, i.assignee ?? '', i.flagged, i.blockedBy.join(','), i.blocks.join(',')].join('|');
       next.set(i.key, sig);
       if (lastBoard.size && lastBoard.get(i.key) !== sig) changed.add(i.key);
     }
     lastBoard = next;
-    const cols: Array<[string, (i: BoardIssue) => boolean]> = [
-      ['To do', (i) => i.statusCategory === 'todo'],
-      ['In progress', (i) => i.statusCategory === 'inprogress'],
-      ['Done', (i) => i.statusCategory === 'done'],
-    ];
+
+    const today = new Date().toISOString().slice(0, 10);
+    const open = issues.filter((i) => i.statusCategory !== 'done');
+    const byKey = new Map(issues.map((i) => [i.key, i]));
+    const isStuck = (i: BoardIssue) => i.statusCategory !== 'done' && (i.status === 'Blocked' || i.flagged);
+    const stuck = open.filter(isStuck);
+    const late = open.filter((i) => i.dueDate && i.dueDate < today && !isStuck(i));
+    const mine = open.filter((i) => i.mine);
+    const done = issues.filter((i) => i.statusCategory === 'done');
+
     board.replaceChildren();
-    for (const [title, pick] of cols) {
-      const col = el('div', 'hb-col');
-      const list = issues.filter(pick);
-      col.append(el('h3', '', `${title} · ${list.length}`));
-      for (const i of list) col.append(card(i, changed.has(i.key)));
-      board.append(col);
+
+    // 1. Stuck chains: the blocked issue, then everything waiting on it.
+    const chains = section('Stuck', stuck.length ? `${stuck.length} blocked` : 'nothing blocked', stuck.length ? 'warn' : 'ok');
+    for (const s of stuck) {
+      const chain = el('div', 'hb-chain' + (changed.has(s.key) ? ' is-changed' : ''));
+      chain.append(row(s, changed.has(s.key)));
+      const waiting = s.blocks.map((k) => byKey.get(k)).filter((x): x is BoardIssue => !!x && x.statusCategory !== 'done');
+      const unblockers = s.blockedBy.map((k) => byKey.get(k)).filter((x): x is BoardIssue => !!x);
+      if (unblockers.length) {
+        const u = el('div', 'hb-chain-sub');
+        u.append(el('span', 'hb-chain-label', 'Unblocked by'));
+        for (const x of unblockers) u.append(row(x, changed.has(x.key), true));
+        chain.append(u);
+      }
+      if (waiting.length) {
+        const w = el('div', 'hb-chain-sub');
+        w.append(el('span', 'hb-chain-label', `Holding up ${waiting.length}`));
+        for (const x of waiting) w.append(row(x, changed.has(x.key), true));
+        chain.append(w);
+      }
+      chains.body.append(chain);
+    }
+    board.append(chains.box);
+
+    // 2. Late work.
+    if (late.length) {
+      const l = section('Late', `${late.length} past due`, 'warn');
+      for (const i of late) l.body.append(row(i, changed.has(i.key)));
+      board.append(l.box);
+    }
+
+    // 3. Your plate, in progress first.
+    const plate = section('Your plate', `${mine.length} open`);
+    for (const i of [...mine].sort((a, b) => rankStatus(a) - rankStatus(b))) plate.body.append(row(i, changed.has(i.key)));
+    if (!mine.length) plate.body.append(el('p', 'hb-empty', 'Nothing open on you.'));
+    board.append(plate.box);
+
+    // 4. Team load: share of open work per person; the overload rule is 40% with at least 6 open issues.
+    const load = new Map<string, number>();
+    for (const i of open) load.set(i.assignee ?? 'Unassigned', (load.get(i.assignee ?? 'Unassigned') ?? 0) + 1);
+    const team = section('Team load', `${open.length} open`);
+    for (const [who, n] of [...load.entries()].sort((a, b) => b[1] - a[1])) {
+      const share = open.length ? n / open.length : 0;
+      const heavy = share > 0.4 && open.length >= 6;
+      const r = el('div', 'hb-load' + (heavy ? ' is-heavy' : ''));
+      const bar = el('div', 'hb-load-bar');
+      const fill = el('div', 'hb-load-fill');
+      fill.style.width = `${Math.round(share * 100)}%`;
+      bar.append(fill);
+      r.append(el('span', 'hb-load-name', who), bar, el('span', 'hb-load-n', heavy ? `${n} · overloaded` : String(n)));
+      team.body.append(r);
+    }
+    board.append(team.box);
+
+    // 5. Finished: one line, keys only.
+    if (done.length) {
+      const d = section('Done', `${done.length}`, 'ok');
+      const keys = el('p', 'hb-done');
+      done.forEach((i, n) => {
+        if (n) keys.append(document.createTextNode('  '));
+        keys.append(el('span', 'hb-key' + (changed.has(i.key) ? ' is-changed' : ''), i.key));
+      });
+      d.body.append(keys);
+      board.append(d.box);
     }
   }
 
-  function card(i: BoardIssue, changed: boolean) {
-    const c = el('div', 'hb-card' + (changed ? ' is-changed' : ''));
-    const top = el('div', 'hb-card-top');
-    top.append(el('span', 'hb-key', i.key));
-    if (i.status === 'Blocked' || i.flagged)
-      top.append(el('span', 'hb-tag hb-tag-red', i.status === 'Blocked' ? 'Blocked' : 'Flagged'));
-    if (i.dueDate) top.append(el('span', 'hb-tag', `Due ${i.dueDate.slice(5)}`));
-    c.append(top, el('div', 'hb-sum', i.summary));
-    const meta = [i.assignee ?? 'Unassigned'];
-    if (i.blockedBy.length) meta.push(`waits on ${i.blockedBy.join(', ')}`);
-    if (i.blocks.length) meta.push(`blocks ${i.blocks.join(', ')}`);
-    c.append(el('div', 'hb-meta', meta.join(' · ')));
-    return c;
+  function section(title: string, note: string, tone: 'warn' | 'ok' | '' = '') {
+    const box = el('section', 'hb-sec' + (tone ? ` is-${tone}` : ''));
+    const h = el('div', 'hb-sec-head');
+    h.append(el('h3', '', title), el('span', 'hb-sec-note', note));
+    const body = el('div', 'hb-sec-body');
+    box.append(h, body);
+    return { box, body };
+  }
+
+  function rankStatus(i: BoardIssue) {
+    return i.status === 'Blocked' ? 0 : i.statusCategory === 'inprogress' ? 1 : 2;
+  }
+
+  function row(i: BoardIssue, changed: boolean, compact = false) {
+    const r = el('div', 'hb-row' + (changed ? ' is-changed' : '') + (compact ? ' is-compact' : ''));
+    const state = i.status === 'Blocked' || i.flagged ? 'stuck' : i.statusCategory;
+    const dot = el('span', `hb-dot is-${state}`);
+    dot.title = i.status;
+    r.append(dot, el('span', 'hb-key', i.key), el('span', 'hb-sum', i.summary));
+    const meta = el('span', 'hb-meta');
+    const bits = [i.status];
+    if (!compact && i.assignee && !i.mine) bits.push(i.assignee.split(' ')[0]);
+    if (i.dueDate) bits.push(`due ${i.dueDate.slice(5)}`);
+    meta.textContent = bits.join(' · ');
+    r.append(meta);
+    return r;
   }
 
   function renderReceipts(recs: ReceiptView[]) {

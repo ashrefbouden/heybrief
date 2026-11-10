@@ -87,6 +87,7 @@ resolver.define('board', async ({ context }) => {
     dueDate: i.dueDate,
     blockedBy: i.blockedBy,
     blocks: i.blocks,
+    mine: i.assignee?.accountId === me(context),
   }));
 });
 

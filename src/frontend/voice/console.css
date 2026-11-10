@@ -458,3 +458,154 @@ select {
     animation: none;
   }
 }
+
+/* ---- Team pulse (HeyBrief's own view, not a Jira board) ---- */
+.hb-board {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.hb-sec {
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  min-width: 0;
+}
+.hb-sec.is-warn {
+  border-left-color: var(--red);
+}
+.hb-sec.is-ok {
+  border-left-color: var(--green);
+}
+.hb-sec-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.hb-sec-head h3 {
+  margin: 0;
+  font-size: 14px;
+}
+.hb-sec-note {
+  font-size: 12px;
+  color: var(--muted);
+}
+.hb-sec.is-warn .hb-sec-note {
+  color: var(--red);
+  font-weight: 600;
+}
+.hb-sec-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.hb-chain {
+  background: var(--red-bg);
+  border-radius: 6px;
+  padding: 6px;
+}
+.hb-chain + .hb-chain {
+  margin-top: 6px;
+}
+.hb-chain-sub {
+  margin: 4px 0 0 14px;
+  padding-left: 10px;
+  border-left: 2px dashed var(--red);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.hb-chain-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--red);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.hb-row {
+  display: grid;
+  grid-template-columns: 10px auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 13px;
+}
+.hb-row.is-compact {
+  padding: 3px 6px;
+}
+.hb-row .hb-sum {
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hb-row .hb-meta {
+  margin: 0;
+  white-space: nowrap;
+}
+.hb-row.is-changed,
+.hb-key.is-changed {
+  animation: hb-flash 2.4s ease-out;
+}
+.hb-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.hb-dot.is-inprogress {
+  background: var(--brand);
+}
+.hb-dot.is-done {
+  background: var(--green);
+}
+.hb-dot.is-stuck {
+  background: var(--red);
+}
+.hb-load {
+  display: grid;
+  grid-template-columns: minmax(0, 8em) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.hb-load-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hb-load-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.hb-load-fill {
+  height: 100%;
+  background: var(--brand);
+}
+.hb-load.is-heavy .hb-load-fill {
+  background: var(--red);
+}
+.hb-load.is-heavy .hb-load-n {
+  color: var(--red);
+  font-weight: 600;
+}
+.hb-done {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+@media (max-width: 560px) {
+  .hb-row {
+    grid-template-columns: 10px auto minmax(0, 1fr);
+  }
+  .hb-row .hb-meta {
+    grid-column: 3;
+  }
+}

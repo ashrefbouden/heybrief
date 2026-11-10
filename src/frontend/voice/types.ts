@@ -26,6 +26,8 @@ export interface BoardIssue {
   dueDate?: string;
   blockedBy: string[];
   blocks: string[];
+  /** Assigned to the person using the page. */
+  mine?: boolean;
 }
 
 export interface Backend {

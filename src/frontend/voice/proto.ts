@@ -18,15 +18,20 @@ const CHIPS = [
 const root = document.getElementById('app')!;
 const backend = localBackend();
 const opts = { chips: CHIPS, subtitle: 'Talk to Jira, and Jira changes.' };
-const claude = (window as unknown as { claude?: { use(n: string): Promise<unknown> } }).claude;
+type ClaudeRuntime = { use?: (name: string) => Promise<unknown> };
+const runtime = (window as unknown as { claude?: ClaudeRuntime }).claude;
+// Only the claude.ai artifact runtime has claude.use(). Other hosts may define window.claude without it.
+const useCapability = typeof runtime?.use === 'function' ? runtime.use.bind(runtime) : undefined;
 
 // Inside claude.ai the frame refuses the browser's own speech API, so typing first, then platform dictation
-// if this view offers it. Opened as a plain file, use the browser's speech recognition.
-mountConsole(root, backend, claude ? null : webSpeechListener(), opts);
-claude
-  ?.use('dictation')
-  .then((d) => {
-    const l: Listener | null = dictationListener(d as Parameters<typeof dictationListener>[0]);
-    if (l) mountConsole(root, backend, l, opts);
-  })
-  .catch(() => undefined);
+// if this view offers it. Opened as a plain file (or anywhere else), use the browser's speech recognition.
+mountConsole(root, backend, useCapability ? null : webSpeechListener(), opts);
+if (useCapability) {
+  Promise.resolve()
+    .then(() => useCapability('dictation'))
+    .then((d) => {
+      const l: Listener | null = dictationListener((d ?? null) as Parameters<typeof dictationListener>[0]);
+      if (l) mountConsole(root, backend, l, opts);
+    })
+    .catch(() => undefined);
+}
