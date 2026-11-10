@@ -51,3 +51,13 @@ describe('voice prototype backend (real engine over simulated Jira)', () => {
     expect(await b.receipts()).toHaveLength(0);
   });
 });
+
+describe('receipt wording', () => {
+  it('shows what the person said, not the read-back, for a voice-approved risk fix', async () => {
+    const b = localBackend();
+    const a = await b.ask('ما هي المخاطر هذا الأسبوع؟', { lang: 'ar' });
+    await b.decide(a.pendingId!, true, 'ar');
+    const [rec] = await b.receipts();
+    expect(rec.heard).toBe('ما هي المخاطر هذا الأسبوع؟');
+  });
+});

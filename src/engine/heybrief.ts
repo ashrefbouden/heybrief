@@ -70,7 +70,7 @@ export class HeyBrief {
     await this.deps.store.set(radarKey(accountId), risks, RADAR_TTL);
     const speech = speakRadar(risks, lang);
     if (!risks.length) return { speech, lang, expectReply: false, data: { risks } };
-    const pending = await this.proposeFix(accountId, risks[0], speech);
+    const pending = await this.proposeFix(accountId, risks[0], speech, text);
     return { speech, lang, expectReply: true, pendingId: pending.id, data: { risks: risks.map(riskJson) } };
   }
 
@@ -122,7 +122,7 @@ export class HeyBrief {
     await this.deps.store.set(radarKey(accountId), risks, RADAR_TTL);
     const b = driveBrief({ issues, risks, accountId, now, lang, etaMinutes: opts.etaMinutes });
     if (!b.decision) return { speech: b.speech, lang, expectReply: false, data: { keys: b.keys } };
-    const pending = await this.proposeFix(accountId, b.decision, b.speech);
+    const pending = await this.proposeFix(accountId, b.decision, b.speech, opts.text);
     return {
       speech: b.speech,
       lang,
@@ -132,8 +132,9 @@ export class HeyBrief {
     };
   }
 
-  private proposeFix(accountId: string, risk: Risk, speech: string) {
-    return propose(this.deps, { accountId, kind: 'risk-fix', ops: risk.fix.ops, heard: speech, readback: speech });
+  /** `heard` is what the person said, shown on the receipt; falls back to the read-back for button-driven proposals. */
+  private proposeFix(accountId: string, risk: Risk, speech: string, heard?: string) {
+    return propose(this.deps, { accountId, kind: 'risk-fix', ops: risk.fix.ops, heard: heard?.trim() || speech, readback: speech });
   }
 
   /**
