@@ -3,17 +3,49 @@
 // Every string from the backend goes in with textContent: nothing is parsed as HTML.
 
 import type { Backend, BoardIssue, Lang, Listener, ReceiptView, Turn } from './types';
+import { LANG_NAME, installHint, pickVoice } from './voices';
 
 export interface ConsoleOptions {
   /** Suggested phrases shown as chips. */
-  chips: Array<{ label: string; text: string }>;
+  chips: Array<{ label: string; text: string; lang?: Lang }>;
   /** Short line under the title. */
   subtitle: string;
 }
 
 const CONFIRM_MS = 120_000;
 const SILENCE_MS = 1400;
-const VOICE_LANG: Record<Lang, string> = { en: 'en-US', fr: 'fr-FR', ar: 'ar-SA' };
+const UI: Record<Lang, { type: string; talk: string; yes: string; no: string; gate: string; hello: string }> = {
+  en: {
+    type: 'Tap the mic and talk, or type here',
+    talk: 'Type what you would say',
+    yes: 'Yes, do it',
+    no: 'Cancel',
+    gate: 'Nothing changes until you say yes.',
+    hello: 'Hi. Ask for your brief, ask what is at risk, or just tell me what you did. I only change Jira after you say yes.',
+  },
+  fr: {
+    type: 'Touchez le micro et parlez, ou écrivez ici',
+    talk: 'Écrivez ce que vous diriez',
+    yes: 'Oui, vas-y',
+    no: 'Annuler',
+    gate: 'Rien ne change avant votre oui.',
+    hello:
+      "Bonjour. Demandez votre résumé, les risques, ou dites-moi ce que vous avez fait. Je ne change Jira qu'après votre oui.",
+  },
+  ar: {
+    type: 'اضغط على الميكروفون وتكلم، أو اكتب هنا',
+    talk: 'اكتب ما ستقوله',
+    yes: 'نعم، نفّذ',
+    no: 'إلغاء',
+    gate: 'لا يتغير شيء قبل أن تقول نعم.',
+    hello: 'مرحبا. اطلب ملخصك، أو اسأل عن المخاطر، أو أخبرني بما أنجزت. لا أغيّر Jira إلا بعد أن تقول نعم.',
+  },
+};
+
+function defaultLang(): Lang {
+  const l = (navigator.language || 'en').slice(0, 2).toLowerCase();
+  return l === 'fr' || l === 'ar' ? l : 'en';
+}
 
 type Who = 'me' | 'hb' | 'sys';
 
@@ -26,7 +58,8 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: 
 
 export function mountConsole(root: HTMLElement, backend: Backend, listener: Listener | null, opts: ConsoleOptions) {
   // ---------- state ----------
-  let lang: Lang | undefined;
+  let lang: Lang = defaultLang();
+  const warnedNoVoice = new Set<Lang>();
   let minutes: number | undefined;
   let speakOn = true;
   let busy = false;
@@ -48,7 +81,6 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
   const langSel = el('select', 'hb-select');
   langSel.setAttribute('aria-label', 'Language');
   for (const [v, t] of [
-    ['', 'Auto language'],
     ['en', 'English'],
     ['fr', 'Français'],
     ['ar', 'العربية'],
@@ -57,7 +89,8 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
     o.value = v;
     langSel.append(o);
   }
-  langSel.onchange = () => (lang = (langSel.value || undefined) as Lang | undefined);
+  langSel.value = lang;
+  langSel.onchange = () => setLang(langSel.value as Lang);
 
   const minSel = el('select', 'hb-select');
   minSel.setAttribute('aria-label', 'Time you have');
@@ -96,7 +129,9 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
     };
     controls.append(resetBtn);
   }
-  head.append(brand, badge, controls);
+  const voiceStatus = el('p', 'hb-voice');
+  voiceStatus.setAttribute('aria-live', 'polite');
+  head.append(brand, badge, controls, voiceStatus);
 
   const main = el('main', 'hb-main');
   const convo = el('section', 'hb-convo');
@@ -123,7 +158,10 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
     const b = el('button', 'hb-chip', c.label);
     b.type = 'button';
     b.title = c.text;
-    b.onclick = () => send(c.text);
+    b.onclick = () => {
+      if (c.lang && c.lang !== lang) setLang(c.lang);
+      void send(c.text);
+    };
     chips.append(b);
   }
 
@@ -174,16 +212,55 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
     log.scrollTop = log.scrollHeight;
   }
 
+  function voiceFor(l: Lang): SpeechSynthesisVoice | undefined {
+    const synth = window.speechSynthesis;
+    return synth ? pickVoice(synth.getVoices(), l) : undefined;
+  }
+
+  /** Shows which voice will speak, or why none will. Voices load late in Chrome, so this also runs on voiceschanged. */
+  function renderVoiceStatus() {
+    const v = voiceFor(lang);
+    voiceStatus.classList.toggle('is-warn', !v);
+    voiceStatus.textContent = !window.speechSynthesis
+      ? 'This browser cannot speak answers. They are shown as text.'
+      : v
+        ? `Speaking ${LANG_NAME[lang]} with: ${v.name}`
+        : `No ${LANG_NAME[lang]} voice on this device, so answers are shown as text. ${installHint(lang, navigator.userAgent)}`;
+  }
+
   function speak(text: string, l: Lang) {
     const synth = window.speechSynthesis;
     if (!speakOn || !synth) return;
     synth.cancel();
+    const voice = voiceFor(l);
+    // Never read Arabic or French with an English voice: it is unintelligible. Show text instead.
+    if (!voice) {
+      if (!warnedNoVoice.has(l)) {
+        warnedNoVoice.add(l);
+        say(
+          'sys',
+          `No ${LANG_NAME[l]} voice is installed here, so this answer is text only. ${installHint(l, navigator.userAgent)}`,
+        );
+      }
+      return;
+    }
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = VOICE_LANG[l];
-    const voice = synth.getVoices().find((v) => v.lang.toLowerCase().startsWith(l));
-    if (voice) u.voice = voice;
-    u.rate = 1.02;
+    u.voice = voice;
+    u.lang = voice.lang;
+    u.rate = l === 'en' ? 1.02 : 0.95;
     synth.speak(u);
+  }
+
+  function setLang(l: Lang) {
+    lang = l;
+    langSel.value = l;
+    const t = UI[l];
+    input.placeholder = listener ? t.type : t.talk;
+    yesBtn.textContent = t.yes;
+    noBtn.textContent = t.no;
+    confirmText.textContent = t.gate;
+    confirmCard.dir = l === 'ar' ? 'rtl' : 'ltr';
+    renderVoiceStatus();
   }
 
   function setBusy(b: boolean) {
@@ -211,7 +288,7 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
   async function decide(yes: boolean) {
     if (!pending || busy) return;
     const p = pending;
-    say('me', yes ? 'Yes' : 'Cancel');
+    say('me', yes ? { en: 'Yes', fr: 'Oui', ar: 'نعم' }[lang] : UI[lang].no, lang);
     setBusy(true);
     try {
       show(await backend.decide(p.id, yes, p.lang));
@@ -270,7 +347,7 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
     mic.classList.add('is-on');
     mic.setAttribute('aria-label', 'Stop and send');
     // start() must run synchronously inside this click.
-    const started = listener.start(lang ?? pending?.lang ?? 'en', {
+    const started = listener.start(lang, {
       partial(text) {
         input.value = (settled + (text ? ' ' + text : '')).trim();
         if (text) armSilence(false);
@@ -395,11 +472,9 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
     }
   }
 
-  say(
-    'hb',
-    'Hi. Ask for your brief, ask what is at risk, or just tell me what you did. I only change Jira after you say yes.',
-    'en',
-  );
+  setLang(lang);
+  window.speechSynthesis?.addEventListener?.('voiceschanged', renderVoiceStatus);
+  say('hb', UI[lang].hello, lang);
   void refresh();
   return { send };
 }

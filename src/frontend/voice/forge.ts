@@ -25,5 +25,7 @@ mountConsole(document.getElementById('app')!, backend, webSpeechListener(), {
     { label: 'Brief me', text: 'Brief me' },
     { label: "What's at risk?", text: "What's at risk this week?" },
     { label: 'Why?', text: 'Why?' },
+    { label: 'Mon résumé', text: 'Mon résumé du jour', lang: 'fr' },
+    { label: 'ما هي المخاطر؟', text: 'ما هي المخاطر هذا الأسبوع؟', lang: 'ar' },
   ],
 });

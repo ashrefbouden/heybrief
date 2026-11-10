@@ -1,8 +1,8 @@
 // Speech-to-text adapters. Both return null when the view cannot listen, so the UI falls back to typing.
 
-import type { Lang, Listener } from './types';
+import type { Listener } from './types';
 
-const BCP47: Record<Lang, string> = { en: 'en-US', fr: 'fr-FR', ar: 'ar-TN' };
+import { LISTEN_LOCALE as BCP47 } from './voices';
 
 /** Minimal shape of the claude.ai artifact dictation namespace (contract 0.2.74). */
 interface Dictation {

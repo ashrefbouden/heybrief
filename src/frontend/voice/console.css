@@ -422,3 +422,13 @@ select {
   cursor: pointer;
   padding: 2px 4px;
 }
+
+.hb-voice {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.hb-voice.is-warn {
+  color: var(--red);
+}

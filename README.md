@@ -68,3 +68,18 @@ Written but **not yet run against a real site** (needs Ashref's machine and the 
 ## Merging the MVP
 
 The engine was designed around the MVP's split (types / intents / ranking / text / assistant with DataSource + Polisher). When the MVP is on GitHub: move its router, ranking and templates into `src/engine`, replace `rankMyDay` in `brief/drive.ts` with the MVP ranking, and port its ~25 reusable tests to Vitest.
+
+## Voice in English, French and Arabic
+
+The language menu on the voice page sets both the microphone language (en-US, fr-FR, ar-TN) and the spoken voice. HeyBrief picks the best installed voice for that language (natural/online voices first, Tunisian Arabic first) and never reads French or Arabic with an English voice: if none is installed, the page says so, shows how to add one, and answers in text.
+
+| Browser | Mic in French / Arabic | Spoken French | Spoken Arabic |
+|---|---|---|---|
+| Microsoft Edge (Windows, Mac) | Yes | Yes (online natural voices) | Yes (online natural voices, incl. Tunisian) |
+| Chrome on Windows | Yes | Yes (Google voice) | Only if a Windows Arabic voice is installed |
+| Chrome on Mac | Yes | Yes | Yes, with the macOS Arabic voice (Majed) downloaded |
+| Chrome on Android | Yes | Yes | Yes, with Arabic in Google text-to-speech |
+| Safari (Mac, iPhone) | Patchy | Yes | Yes, with an Arabic voice downloaded |
+| Firefox | No (typing only) | Yes, with OS voices | With OS voices |
+
+From memory of browser behaviour, to be confirmed on the demo machine. For the demo video, use Edge.

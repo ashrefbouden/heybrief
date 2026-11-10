@@ -214,14 +214,14 @@ function proposeFix(
   if (ids.has('blocked-too-long') || ids.has('blocking-chain')) {
     const due = addBusinessDays(ctx.now, 2);
     const owner = root.assignee;
-    const weekday = new Date(due + 'T00:00:00Z').toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
+    const dow = new Date(due + 'T00:00:00Z').getUTCDay();
     const name = firstName(owner);
     return {
       kind: 'follow-up',
       say: {
-        en: `create a follow-up for ${name} due ${weekday}`,
-        fr: `crée une tâche de suivi pour ${name} pour ${due}`,
-        ar: `أنشئ مهمة متابعة لـ ${name} بتاريخ ${due}`,
+        en: `create a follow-up for ${name} due ${WEEKDAY.en[dow]}`,
+        fr: `crée une tâche de suivi pour ${name} pour ${WEEKDAY.fr[dow]}`,
+        ar: `أنشئ مهمة متابعة لـ ${name} يوم ${WEEKDAY.ar[dow]}`,
       },
       ops: [
         {
@@ -369,3 +369,10 @@ function buildRisk(
     fix: proposeFix(root, signals, ctx),
   };
 }
+
+/** Spoken weekday names; a fixed table so speech never depends on the runtime's ICU data. Sunday first. */
+const WEEKDAY = {
+  en: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+  fr: ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'],
+  ar: ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'],
+};
