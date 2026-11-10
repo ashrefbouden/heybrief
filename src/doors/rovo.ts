@@ -96,6 +96,14 @@ export async function explainRisk(payload: Payload, context?: Record<string, any
   return reply(await hb.safely(langOf(payload), () => hb.why(accountId, n, str(payload.language, 5))));
 }
 
+/** "Anything urgent?": the top urgent alert (incident, security, deadline collision, due today) with one proposed action. */
+export async function urgentAlerts(payload: Payload, context?: Record<string, any>) {
+  const accountId = accountIdOf(payload, context);
+  const lang = str(payload.language, 5);
+  const { hb } = await engineFor({ kind: 'user' });
+  return reply(await hb.safely(langOf(payload), () => hb.alerts(accountId, { lang, ask: true })));
+}
+
 export async function confirmChange(payload: Payload, context?: Record<string, any>) {
   const accountId = accountIdOf(payload, context);
   const id = str(payload.confirmation_id, 100);

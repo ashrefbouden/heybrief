@@ -11,6 +11,8 @@ export interface Turn {
   pendingId?: string;
   expectReply: boolean;
   failed?: 'timeout' | 'error';
+  /** Set when this turn is an urgent heads-up the page should show as a banner. */
+  alert?: { key: string; severity: 'critical' | 'urgent' };
 }
 
 export interface BoardIssue {
@@ -34,6 +36,10 @@ export interface Backend {
   board(): Promise<BoardIssue[]>;
   receipts(): Promise<ReceiptView[]>;
   undo(receiptId: string): Promise<{ ok: boolean }>;
+  /** Urgent heads-up poll. Resolves with an empty speech when there is nothing new. Optional so older backends compile. */
+  alerts?(lang: Lang): Promise<Turn>;
+  /** Prototype only: drop a Highest-priority outage into the simulated Jira, to show the heads-up. */
+  simulateIncident?(): Promise<void>;
   /** Prototype only: start the story again. */
   reset?(): Promise<void>;
 }

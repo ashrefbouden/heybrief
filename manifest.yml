@@ -12,6 +12,8 @@ modules:
         Use my-day for "what's on my plate" or a morning brief. Use risk-radar for risks or
         "what's at risk". Use explain-risk when the user asks "why?" after a risk. Use
         voice-standup when the user reports status on issues (done, blocked, starting).
+        Use urgent-alerts when the user asks what is urgent, on fire, or for alerts: say the
+        confidence it reports, and if it says keywords only, tell the user to verify.
         Use read-issue for one issue and search-docs for Confluence pages.
 
         WRITE SAFETY, ALWAYS: voice-standup and risk-radar never change Jira themselves. When a
@@ -24,6 +26,7 @@ modules:
       conversationStarters:
         - What's on my plate today?
         - What's at risk this week?
+        - Anything urgent right now?
         - I finished MP-12, MP-15 is blocked on legal, I'll pick up MP-9
         - Qu'est-ce qui est en retard ?
       actions:
@@ -33,6 +36,7 @@ modules:
         - voice-standup
         - risk-radar
         - explain-risk
+        - urgent-alerts
         - confirm-change
 
   action:
@@ -122,6 +126,20 @@ modules:
           type: integer
           required: false
           description: 1 for the top risk (default), 2 or 3.
+    - key: urgent-alerts
+      name: Urgent alerts
+      function: urgent-alerts-fn
+      actionVerb: GET
+      description: >
+        The most urgent Jira event now (unowned P1 incident, security issue, blocker hitting a
+        deadline, P1 due today), with confidence, evidence and one proposed action plus a
+        confirmation_id. Nothing is written until confirm-change.
+      inputs:
+        language:
+          title: Language
+          type: string
+          required: false
+          description: en, fr or ar.
     - key: confirm-change
       name: Confirm change
       function: confirm-change-fn
@@ -134,7 +152,7 @@ modules:
           title: Confirmation id
           type: string
           required: true
-          description: The confirmation_id from voice-standup, risk-radar or my-day.
+          description: The confirmation_id from voice-standup, risk-radar, urgent-alerts or my-day.
         user_reply:
           title: User reply
           type: string
@@ -151,6 +169,7 @@ modules:
         - voice-standup
         - risk-radar
         - explain-risk
+        - urgent-alerts
         - confirm-change
 
   jira:globalPage:
@@ -197,6 +216,8 @@ modules:
       handler: index.riskRadar
     - key: explain-risk-fn
       handler: index.explainRisk
+    - key: urgent-alerts-fn
+      handler: index.urgentAlerts
     - key: confirm-change-fn
       handler: index.confirmChange
     - key: ui-resolver-fn

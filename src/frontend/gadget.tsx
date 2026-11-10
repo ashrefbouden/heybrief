@@ -25,7 +25,7 @@ interface Line {
 interface ReceiptView {
   id: string;
   at: string;
-  kind: 'talkback' | 'risk-fix';
+  kind: 'talkback' | 'risk-fix' | 'alert';
   heard: string;
   lines: Line[];
   allOk: boolean;
@@ -58,7 +58,7 @@ function Receipt({ r, onUndo, busy }: { r: ReceiptView; onUndo: () => void; busy
         <Inline space="space.100" alignBlock="center" spread="space-between">
           <Inline space="space.100" alignBlock="center">
             <Lozenge appearance={r.undone ? 'default' : r.allOk ? 'success' : 'moved'}>
-              {r.undone ? 'Undone' : r.kind === 'talkback' ? 'Status update' : 'Risk fix'}
+              {r.undone ? 'Undone' : r.kind === 'talkback' ? 'Status update' : r.kind === 'alert' ? 'Urgent alert' : 'Risk fix'}
             </Lozenge>
             <Text size="small">{time(r.at)}</Text>
           </Inline>

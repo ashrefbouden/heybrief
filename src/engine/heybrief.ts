@@ -1,6 +1,8 @@
 // Use cases shared by every door (Siri web trigger, Rovo actions, MCP tools, gadget).
 // Doors stay thin: they authenticate, call one of these, and format the reply.
 
+import { DEFAULT_ALERTS, detectAlerts, type Alert, type AlertConfig } from './alert/detect';
+import { explainAlert, NO_ALERTS, SNOOZED, speakAlert } from './alert/speak';
 import { driveBrief } from './brief/drive';
 import { classifyReply, getPending, propose, resolvePending } from './confirm';
 import { detectLang } from './lang';
@@ -26,10 +28,18 @@ export interface Answer {
 const RADAR_TTL = 15 * 60;
 const radarKey = (accountId: string) => `radar:${accountId}`;
 
+/** An alert interrupts once; after that it stays quiet for a week (or until a snooze runs out). */
+const ALERT_SEEN_TTL = 7 * 24 * 3600;
+export const ALERT_SNOOZE_MINUTES = 30;
+/** Cap on stored-flag lookups per poll, so a noisy project cannot make the poll slow. */
+const MAX_ALERTS_CHECKED = 5;
+const alertSeenKey = (accountId: string, alertId: string) => `alert-seen:${accountId}:${alertId}`;
+const alertLastKey = (accountId: string) => `alert-last:${accountId}`;
+
 export class HeyBrief {
   constructor(
     private deps: Deps,
-    private opts: { projectKeys?: string[]; radar?: RadarConfig; standupPage?: boolean } = {},
+    private opts: { projectKeys?: string[]; radar?: RadarConfig; alerts?: AlertConfig; standupPage?: boolean } = {},
   ) {}
 
   async talkback(accountId: string, text: string, langHint?: string): Promise<Answer> {
@@ -98,6 +108,18 @@ export class HeyBrief {
   /** "Why?" about the last radar run: risk n (1-based) or the top one. */
   async why(accountId: string, n = 1, langHint?: string, text = ''): Promise<Answer> {
     const lang = detectLang(text, langHint);
+    const pendingAlert = await getPending(this.deps, accountId);
+    if (pendingAlert?.kind === 'alert') {
+      const last = await this.deps.store.get<Alert[]>(alertLastKey(accountId));
+      if (last?.[0])
+        return {
+          speech: explainAlert(last[0], lang),
+          lang,
+          expectReply: true,
+          pendingId: pendingAlert.id,
+          data: alertJson(last[0]),
+        };
+    }
     const risks = await this.deps.store.get<Risk[]>(radarKey(accountId));
     const risk = risks?.[n - 1];
     if (!risk) {
@@ -132,9 +154,68 @@ export class HeyBrief {
     };
   }
 
+  /**
+   * Heads-up: the most urgent NEW alert, spoken once, with its playbook action waiting for a yes.
+   * The voice page polls this. It stays silent (speech '') when there is nothing new, and it never
+   * interrupts while another change is waiting for a yes, so it cannot replace what the user is confirming.
+   * `ask: true` is the user asking "anything urgent?": then already-announced alerts are repeated.
+   */
+  async alerts(accountId: string, opts: { lang?: string; text?: string; scope?: Scope; ask?: boolean } = {}): Promise<Answer> {
+    const lang = detectLang(opts.text ?? '', opts.lang);
+    const quiet: Answer = { speech: '', lang, expectReply: false, data: { alert: null } };
+    if (!opts.ask && (await getPending(this.deps, accountId))) return quiet;
+
+    const issues = await this.deps.jira.searchOpen(opts.scope ?? { kind: 'me', accountId });
+    const now = this.deps.clock.now();
+    const all = detectAlerts(issues, now, accountId, this.opts.alerts ?? DEFAULT_ALERTS).slice(0, MAX_ALERTS_CHECKED);
+    if (!all.length) return opts.ask ? { ...quiet, speech: NO_ALERTS[lang] } : quiet;
+
+    let top: Alert | undefined;
+    let more = 0;
+    for (const a of all) {
+      const key = alertSeenKey(accountId, a.id);
+      if (!top) {
+        // Atomic claim: two open tabs polling at once announce the alert once.
+        const fresh = await this.deps.store.setIfAbsent(key, now.toISOString(), ALERT_SEEN_TTL);
+        if (fresh || opts.ask) top = a;
+      } else if ((await this.deps.store.get(key)) === undefined) more++;
+    }
+    if (!top) return quiet;
+
+    const speech = speakAlert(top, lang, more);
+    await this.deps.store.set(alertLastKey(accountId), [top], RADAR_TTL);
+    const pending = await propose(this.deps, {
+      accountId,
+      kind: 'alert',
+      ops: top.action.ops,
+      heard: opts.text?.trim() || speech,
+      readback: speech,
+    });
+    return { speech, lang, expectReply: true, pendingId: pending.id, data: { alert: alertJson(top), more } };
+  }
+
+  /** "Later": cancel the alert's proposed action and bring the alert back after the snooze. */
+  async snoozeAlert(accountId: string, langHint?: string, text = ''): Promise<Answer> {
+    const lang = detectLang(text, langHint);
+    const last = (await this.deps.store.get<Alert[]>(alertLastKey(accountId)))?.[0];
+    await this.deps.store.delete(`pending:${accountId}`);
+    if (last) {
+      const key = alertSeenKey(accountId, last.id);
+      await this.deps.store.delete(key);
+      await this.deps.store.set(key, this.deps.clock.now().toISOString(), ALERT_SNOOZE_MINUTES * 60);
+    }
+    return { speech: SNOOZED[lang](ALERT_SNOOZE_MINUTES), lang, expectReply: false };
+  }
+
   /** `heard` is what the person said, shown on the receipt; falls back to the read-back for button-driven proposals. */
   private proposeFix(accountId: string, risk: Risk, speech: string, heard?: string) {
-    return propose(this.deps, { accountId, kind: 'risk-fix', ops: risk.fix.ops, heard: heard?.trim() || speech, readback: speech });
+    return propose(this.deps, {
+      accountId,
+      kind: 'risk-fix',
+      ops: risk.fix.ops,
+      heard: heard?.trim() || speech,
+      readback: speech,
+    });
   }
 
   /**
@@ -149,6 +230,7 @@ export class HeyBrief {
     }
     const pending = await getPending(this.deps, accountId);
     if (pending) {
+      if (pending.kind === 'alert' && LATER.test(clean)) return this.snoozeAlert(accountId, opts.lang, clean);
       const r = classifyReply(clean);
       if (r !== 'other') return this.confirm(accountId, clean, undefined, opts.lang);
       // "why?" keeps the proposed fix alive; any other new request cancels it.
@@ -156,6 +238,8 @@ export class HeyBrief {
       await this.deps.store.delete(`pending:${accountId}`);
     }
     if (WHY.test(clean)) return this.why(accountId, 1, opts.lang, clean);
+    const keyed = /\b[A-Z][A-Z0-9]{1,9}-\d+\b/.test(normaliseKeys(clean, this.opts.projectKeys));
+    if (!keyed && URGENT.test(clean)) return this.alerts(accountId, { lang: opts.lang, text: clean, ask: true });
     if (RISK.test(clean)) return this.radar(accountId, { kind: 'me', accountId }, opts.lang, clean);
     const hasKey = /\b[A-Z][A-Z0-9]{1,9}-\d+\b/.test(normaliseKeys(clean, this.opts.projectKeys));
     if (hasKey && !BRIEF.test(clean)) return this.talkback(accountId, clean, opts.lang);
@@ -186,6 +270,29 @@ export class HeyBrief {
 
 const WHY = words(['why', 'how come', 'pourquoi', 'لماذا', 'ليش', 'علاش']);
 const RISK = words(['risks?', 'at risk', 'risques?', 'en danger', 'مخاطر', 'خطر', 'المخاطر']);
+const URGENT = words([
+  'urgent',
+  'alerts?',
+  'emergenc(?:y|ies)',
+  'anything on fire',
+  'urgences?',
+  'alertes?',
+  'عاجل',
+  'طوارئ',
+  'تنبيه(?:ات)?',
+]);
+const LATER = words([
+  'later',
+  'snooze',
+  'remind me later',
+  'not now',
+  'plus tard',
+  'pas maintenant',
+  'لاحقا',
+  'لاحقاً',
+  'بعدين',
+  'ليس الآن',
+]);
 const BRIEF = words(['brief(?: me)?', 'my day', 'my plate', 'résumé', 'ma journée', 'ملخص', 'يومي']);
 
 function riskJson(r: Risk) {
@@ -200,4 +307,26 @@ function riskJson(r: Risk) {
   };
 }
 
-export { riskJson as riskToJson };
+function alertJson(a: Alert) {
+  return {
+    id: a.id,
+    kind: a.kind,
+    severity: a.severity,
+    confidence: a.confidence,
+    key: a.issueKey,
+    summary: a.summary,
+    age_minutes: a.ageMinutes,
+    rule: a.rule,
+    sources: a.evidence,
+    proposed_action: { kind: a.action.kind, say: a.action.say.en },
+  };
+}
+
+/** What a UI banner needs from an alerts() answer: the issue and how loud to be. */
+export function alertBanner(data: unknown): { key: string; severity: 'critical' | 'urgent' } | undefined {
+  const a = (data as { alert?: { key?: unknown; severity?: unknown } | null } | undefined)?.alert;
+  if (!a || typeof a.key !== 'string') return undefined;
+  return { key: a.key, severity: a.severity === 'critical' ? 'critical' : 'urgent' };
+}
+
+export { riskJson as riskToJson, alertJson as alertToJson };

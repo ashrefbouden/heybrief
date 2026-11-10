@@ -31,6 +31,8 @@ const FIELDS = [
   'parent',
   'project',
   'labels',
+  'issuetype',
+  'created',
 ];
 const MAX_RESULTS = 50;
 
@@ -90,6 +92,9 @@ export class ForgeJira implements JiraPort {
       blocks,
       blockedBy,
       epicKey: f.parent?.key,
+      issueType: f.issuetype?.name,
+      labels: f.labels ?? [],
+      createdAt: f.created,
     };
   }
 

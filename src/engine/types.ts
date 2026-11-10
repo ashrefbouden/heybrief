@@ -33,6 +33,11 @@ export interface Issue {
   /** Keys of issues that block this issue (inward "is blocked by" links). */
   blockedBy: string[];
   epicKey?: string;
+  /** Issue type name (Task, Bug, Incident...). Optional: only urgent alerts read it. */
+  issueType?: string;
+  labels?: string[];
+  /** ISO timestamp the issue was created. */
+  createdAt?: string;
 }
 
 export interface Transition {
@@ -90,7 +95,7 @@ export interface Receipt {
   results: OpResult[];
 }
 
-export type PendingKind = 'talkback' | 'risk-fix';
+export type PendingKind = 'talkback' | 'risk-fix' | 'alert';
 
 export interface PendingAction {
   id: string;

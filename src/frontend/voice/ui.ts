@@ -13,6 +13,12 @@ export interface ConsoleOptions {
 }
 
 const CONFIRM_MS = 120_000;
+/** Urgent heads-up poll. Background tabs throttle timers to about once a minute anyway. */
+export const ALERT_POLL_MS = 60_000;
+const ALERT_FIRST_MS = 4_000;
+/** One poll timer per page, even when the prototype remounts the console with a new listener. */
+let alertTimer: ReturnType<typeof setInterval> | undefined;
+let alertKick: ReturnType<typeof setTimeout> | undefined;
 const SILENCE_MS = 1400;
 const UI: Record<Lang, { type: string; talk: string; yes: string; no: string; gate: string; hello: string }> = {
   en: {
@@ -68,6 +74,8 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
   let lastBoard = new Map<string, string>();
   let silenceTimer: ReturnType<typeof setTimeout> | undefined;
   let countdown: ReturnType<typeof setInterval> | undefined;
+  let audio: AudioContext | undefined;
+  let alertPendingId: string | undefined;
 
   // ---------- layout ----------
   root.replaceChildren();
@@ -129,6 +137,19 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
     };
     controls.append(resetBtn);
   }
+  if (backend.simulateIncident) {
+    const simBtn = el('button', 'hb-toggle', 'Simulate P1 outage');
+    simBtn.type = 'button';
+    simBtn.title = 'Adds a Highest-priority incident to the simulated Jira. HeyBrief interrupts within seconds.';
+    simBtn.onclick = async () => {
+      await backend.simulateIncident!();
+      say('sys', 'Someone just opened a Highest-priority incident in Jira.');
+      await refresh();
+      if (alertKick) clearTimeout(alertKick);
+      alertKick = setTimeout(() => void pollAlerts(), 1500);
+    };
+    controls.append(simBtn);
+  }
   const voiceStatus = el('p', 'hb-voice');
   voiceStatus.setAttribute('aria-live', 'polite');
   head.append(brand, badge, controls, voiceStatus);
@@ -139,6 +160,11 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
   const log = el('div', 'hb-log');
   log.setAttribute('role', 'log');
   log.setAttribute('aria-live', 'polite');
+
+  // Urgent heads-up banner: the real alert. Sound and speech are best effort (browsers may block them).
+  const alertBar = el('div', 'hb-alert');
+  alertBar.setAttribute('role', 'alert');
+  alertBar.hidden = true;
 
   const confirmCard = el('div', 'hb-confirm');
   confirmCard.hidden = true;
@@ -189,7 +215,7 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
     ? 'Tap the mic, talk, then pause. HeyBrief sends when you stop talking.'
     : 'Voice input is not available in this browser. Typing works the same way.';
 
-  convo.append(log, confirmCard, chips, bar, hint);
+  convo.append(alertBar, log, confirmCard, chips, bar, hint);
 
   const side = el('aside', 'hb-side');
   const boardHead = el('h2', '', 'Jira board');
@@ -301,6 +327,11 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
   }
 
   function show(t: Turn) {
+    // The banner stays up while its own proposal is pending (a "why?" keeps it), and goes with anything else.
+    if (t.alert) {
+      showAlert(t);
+      alertPendingId = t.pendingId;
+    } else if (t.pendingId !== alertPendingId) alertBar.hidden = true;
     say('hb', t.speech, t.lang);
     speak(t.speech, t.lang);
     if (t.pendingId) setPending(t.pendingId, t.lang);
@@ -317,6 +348,7 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
 
   function clearPending() {
     pending = undefined;
+    alertBar.hidden = true;
     confirmCard.hidden = true;
     if (countdown) clearInterval(countdown);
     countdown = undefined;
@@ -329,6 +361,69 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
     if (!left) {
       clearPending();
       say('sys', 'The proposal expired. Nothing was changed.');
+    }
+  }
+
+  // ---------- urgent heads-up ----------
+  function showAlert(t: Turn) {
+    alertBar.textContent = t.speech;
+    alertBar.dir = t.lang === 'ar' ? 'rtl' : 'auto';
+    alertBar.classList.toggle('is-critical', t.alert?.severity === 'critical');
+    alertBar.hidden = false;
+    chime(t.alert?.severity === 'critical' ? 2 : 1);
+  }
+
+  /** A short two-tone chime. Silently skipped when the browser has not allowed audio yet. */
+  function chime(times: number) {
+    try {
+      const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!Ctx) return;
+      audio ??= new Ctx();
+      if (audio.state === 'suspended') void audio.resume().catch(() => undefined);
+      const t0 = audio.currentTime;
+      for (let i = 0; i < times * 2; i++) {
+        const o = audio.createOscillator();
+        const g = audio.createGain();
+        const at = t0 + i * 0.22;
+        o.frequency.value = i % 2 ? 660 : 880;
+        g.gain.setValueAtTime(0.0001, at);
+        g.gain.exponentialRampToValueAtTime(0.18, at + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, at + 0.2);
+        o.connect(g).connect(audio.destination);
+        o.start(at);
+        o.stop(at + 0.21);
+      }
+    } catch {
+      /* no audio: the banner and the spoken text still carry the alert */
+    }
+  }
+  // Browsers only allow sound after a gesture: unlock audio on the first click anywhere.
+  root.addEventListener(
+    'pointerdown',
+    () => {
+      try {
+        const Ctx = window.AudioContext;
+        if (Ctx) {
+          audio ??= new Ctx();
+          void audio.resume().catch(() => undefined);
+        }
+      } catch {
+        /* ignore */
+      }
+    },
+    { once: true },
+  );
+
+  /** Never interrupt the person mid-sentence, mid-request, or while they are deciding on another change. */
+  async function pollAlerts() {
+    if (!backend.alerts || busy || listening || pending) return;
+    try {
+      const t = await backend.alerts(lang);
+      if (!t.speech || busy || listening || pending) return;
+      show(t);
+      await refresh();
+    } catch {
+      /* a failed poll stays silent */
     }
   }
 
@@ -476,6 +571,12 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
   window.speechSynthesis?.addEventListener?.('voiceschanged', renderVoiceStatus);
   say('hb', UI[lang].hello, lang);
   void refresh();
+  if (alertTimer) clearInterval(alertTimer);
+  if (alertKick) clearTimeout(alertKick);
+  if (backend.alerts) {
+    alertKick = setTimeout(() => void pollAlerts(), ALERT_FIRST_MS);
+    alertTimer = setInterval(() => void pollAlerts(), ALERT_POLL_MS);
+  }
   return { send };
 }
 

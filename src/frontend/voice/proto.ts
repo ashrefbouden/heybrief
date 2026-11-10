@@ -9,6 +9,7 @@ const CHIPS = [
   { label: 'Brief me', text: 'Brief me' },
   { label: "What's at risk?", text: "What's at risk this week?" },
   { label: 'Why?', text: 'Why?' },
+  { label: 'Anything urgent?', text: 'Anything urgent?' },
   { label: 'Talk-back update', text: "I finished MP-12, MP-15 is blocked on legal, I'll pick up MP-9 today" },
   { label: 'En français', text: "J'ai terminé MP-12, MP-15 est bloqué par le juridique", lang: 'fr' as const },
   { label: 'بالعربية', text: 'ما هي المخاطر هذا الأسبوع؟', lang: 'ar' as const },

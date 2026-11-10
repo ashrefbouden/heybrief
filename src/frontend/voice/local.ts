@@ -3,9 +3,10 @@
 
 import { listReceiptViews, undoReceipt } from '../../engine/confirm';
 import { demoDataset } from '../../engine/demo/data';
-import { HeyBrief } from '../../engine/heybrief';
+import { alertBanner, HeyBrief } from '../../engine/heybrief';
 import type { Clock, Deps } from '../../engine/ports';
 import { FakeConfluence, FakeJira, MemoryStore } from '../../engine/testing/fakes';
+import type { Issue } from '../../engine/types';
 import type { Backend, BoardIssue, Turn } from './types';
 
 const ME = { accountId: 'me-1', displayName: 'You' };
@@ -38,6 +39,7 @@ export function localBackend(): Backend {
     pendingId: a.pendingId,
     expectReply: a.expectReply,
     failed: a.failed,
+    alert: alertBanner(a.data),
   });
 
   return {
@@ -73,6 +75,34 @@ export function localBackend(): Backend {
     },
     async reset() {
       boot();
+    },
+    async alerts(lang) {
+      try {
+        return turn(await hb.alerts(ME.accountId, { lang }));
+      } catch {
+        return { speech: '', lang, expectReply: false };
+      }
+    },
+    async simulateIncident() {
+      const now = new Date().toISOString();
+      const n = 1 + Math.max(0, ...[...jira.issues.keys()].map((k) => Number(k.split('-')[1]) || 0));
+      const incident: Issue = {
+        key: `MP-${n}`,
+        projectKey: 'MP',
+        summary: 'Checkout API down in production',
+        status: 'To Do',
+        statusCategory: 'todo',
+        statusChangedAt: now,
+        updatedAt: now,
+        createdAt: now,
+        priority: 'Highest',
+        issueType: 'Incident',
+        reporter: jira.people.find((p) => p.accountId !== ME.accountId),
+        flagged: false,
+        blocks: [],
+        blockedBy: [],
+      };
+      jira.issues.set(incident.key, incident);
     },
   };
 }

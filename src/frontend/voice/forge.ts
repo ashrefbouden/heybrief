@@ -15,6 +15,7 @@ const backend: Backend = {
   board: () => call<BoardIssue[]>('board'),
   receipts: () => call<ReceiptView[]>('getReceipts'),
   undo: (receiptId) => call<{ ok: boolean }>('undo', { receiptId }),
+  alerts: (lang) => call<Turn>('alerts', { lang }),
 };
 
 void view.theme?.enable?.().catch(() => undefined);
@@ -25,6 +26,7 @@ mountConsole(document.getElementById('app')!, backend, webSpeechListener(), {
     { label: 'Brief me', text: 'Brief me' },
     { label: "What's at risk?", text: "What's at risk this week?" },
     { label: 'Why?', text: 'Why?' },
+    { label: 'Anything urgent?', text: 'Anything urgent?' },
     { label: 'Mon résumé', text: 'Mon résumé du jour', lang: 'fr' },
     { label: 'ما هي المخاطر؟', text: 'ما هي المخاطر هذا الأسبوع؟', lang: 'ar' },
   ],

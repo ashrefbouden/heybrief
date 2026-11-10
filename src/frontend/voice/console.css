@@ -432,3 +432,29 @@ select {
 .hb-voice.is-warn {
   color: var(--red);
 }
+
+/* Urgent heads-up banner */
+.hb-alert {
+  border: 1px solid var(--red);
+  border-left-width: 6px;
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  background: var(--red-bg);
+  color: var(--text);
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.hb-alert.is-critical {
+  animation: hb-pulse 1.2s ease-in-out 3;
+}
+@keyframes hb-pulse {
+  50% {
+    box-shadow: 0 0 0 4px var(--red-bg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hb-alert.is-critical {
+    animation: none;
+  }
+}

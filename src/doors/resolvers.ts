@@ -3,6 +3,7 @@
 
 import Resolver from '@forge/resolver';
 import { listReceiptViews, undoReceipt } from '../engine/confirm';
+import { alertBanner } from '../engine/heybrief';
 import type { Lang } from '../engine/types';
 import type { ForgeJira } from '../forge/jira';
 import { forgeStore } from '../forge/store';
@@ -54,6 +55,21 @@ resolver.define('decide', async ({ payload, context }) => {
   return turn(
     await hb.safely(lang ?? 'en', () => hb.confirm(me(context), p?.yes === true ? 'yes' : 'no', str(p?.pendingId), lang)),
   );
+});
+
+/**
+ * Urgent heads-up poll from the voice page (every 60 s). Empty speech when there is nothing new.
+ * A failed poll stays silent: the page must never speak an error nobody asked for.
+ */
+resolver.define('alerts', async ({ payload, context }) => {
+  const lang = langOf((payload as any)?.lang) ?? 'en';
+  try {
+    const { hb } = await engineFor({ kind: 'user' });
+    const a = await hb.alerts(me(context), { lang });
+    return { ...turn(a), alert: alertBanner(a.data) };
+  } catch {
+    return { speech: '', lang, expectReply: false };
+  }
 });
 
 resolver.define('board', async ({ context }) => {
