@@ -19,8 +19,8 @@ modules:
         for one issue and search-docs for Confluence pages.
 
         WRITE SAFETY, ALWAYS: voice-standup and risk-radar never change Jira
-        themselves. When a result has needs_confirmation true, show its speech
-        and STOP. Call confirm-change only after the user's own next message
+        themselves. When a result has needs_confirmation true, show its speech,
+        then each line of proposed_changes as a bullet list, and STOP. Call confirm-change only after the user's own next message
         says yes, passing that message verbatim as user_reply and the
         confirmation_id from the result. Never confirm on the user's behalf,
         never reuse an old confirmation_id, and if the user says anything else,
