@@ -125,6 +125,7 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
   const demo = el('div', 'hb-demo');
   let resetBtn: HTMLButtonElement | undefined;
   let simBtn: HTMLButtonElement | undefined;
+  let outBtn: HTMLButtonElement | undefined;
   if (backend.reset) {
     resetBtn = el('button', 'hb-ghost');
     resetBtn.type = 'button';
@@ -149,6 +150,17 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
       alertKick = setTimeout(() => void pollAlerts(), 1500);
     };
     demo.append(simBtn);
+  }
+  if (backend.simulateOutage) {
+    outBtn = el('button', 'hb-ghost is-danger');
+    outBtn.type = 'button';
+    outBtn.onclick = async () => {
+      await backend.simulateOutage!();
+      say('sys', t.demoOutageDone);
+      if (alertKick) clearTimeout(alertKick);
+      alertKick = setTimeout(() => void pollAlerts(), 1500);
+    };
+    demo.append(outBtn);
   }
   head.append(brand, badge, controls);
   if (demo.childElementCount) head.append(demo);
@@ -289,6 +301,7 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
     speakBtn.title = speakOn ? t.voiceOn : t.voiceOff;
     if (resetBtn) resetBtn.textContent = t.demoReset;
     if (simBtn) simBtn.textContent = t.demoIncident;
+    if (outBtn) outBtn.textContent = t.demoOutage;
     convo.setAttribute('aria-label', t.conversation);
     input.placeholder = listener ? t.placeholderMic : t.placeholderType;
     input.setAttribute('aria-label', t.conversation);

@@ -13,6 +13,8 @@ export interface Strings {
   demoIncident: string;
   demoResetDone: string;
   demoIncidentDone: string;
+  demoOutage: string;
+  demoOutageDone: string;
   // states
   ready: string;
   listening: string;
@@ -98,6 +100,8 @@ const en: Strings = {
   demoIncident: 'Simulate P1 outage',
   demoResetDone: 'Demo reset. Same story, fresh board.',
   demoIncidentDone: 'Someone just opened a Highest-priority incident in Jira.',
+  demoOutage: 'Simulate GitHub outage',
+  demoOutageDone: 'GitHub’s status page now reports an outage.',
   ready: 'Ready',
   listening: 'Listening…',
   thinking: 'Working…',
@@ -186,6 +190,8 @@ const fr: Strings = {
   demoIncident: 'Simuler une panne P1',
   demoResetDone: 'Démo réinitialisée. Même histoire, tableau neuf.',
   demoIncidentDone: 'Quelqu’un vient d’ouvrir un incident de priorité maximale.',
+  demoOutage: 'Simuler une panne GitHub',
+  demoOutageDone: 'La page de statut GitHub signale une panne.',
   ready: 'Prêt',
   listening: 'J’écoute…',
   thinking: 'Je travaille…',
@@ -274,6 +280,8 @@ const ar: Strings = {
   demoIncident: 'محاكاة عطل P1',
   demoResetDone: 'أُعيد العرض. القصة نفسها، لوحة جديدة.',
   demoIncidentDone: 'فتح أحدهم للتو حادثة بأعلى أولوية في Jira.',
+  demoOutage: 'محاكاة عطل GitHub',
+  demoOutageDone: 'صفحة حالة GitHub تبلّغ الآن عن عطل.',
   ready: 'جاهز',
   listening: 'أستمع…',
   thinking: 'أعمل…',

@@ -30,24 +30,35 @@ const HEAD: Record<Lang, Record<Alert['kind'], string>> = {
     security: 'Urgent heads-up: security issue.',
     'deadline-collision': 'Heads-up: a blocker will make a deadline slip.',
     'due-today': 'Heads-up: top-priority work due today, not started.',
+    outside: 'Heads-up: an outside outage touches your work.',
   },
   fr: {
     incident: 'Alerte urgente : incident possible.',
     security: 'Alerte urgente : problème de sécurité.',
     'deadline-collision': 'Attention : un blocage va faire glisser une échéance.',
     'due-today': 'Attention : tâche prioritaire due aujourd’hui, pas commencée.',
+    outside: 'Attention : une panne externe touche votre travail.',
   },
   ar: {
     incident: 'تنبيه عاجل: حادث محتمل.',
     security: 'تنبيه عاجل: مشكلة أمنية.',
     'deadline-collision': 'تنبيه: عائق سيؤخر موعدا نهائيا.',
     'due-today': 'تنبيه: مهمة ذات أولوية موعدها اليوم ولم تبدأ.',
+    outside: 'تنبيه: عطل خارجي يمس عملك.',
   },
 };
 
 function detail(a: Alert, lang: Lang): string {
   const when = ago(a.ageMinutes, lang);
   const owner = String(a.facts.owner || '');
+  if (a.kind === 'outside') {
+    const v = String(a.facts.vendor);
+    const imp = String(a.facts.impact);
+    const affected = String(a.facts.affected);
+    if (lang === 'fr') return `${v} signale : ${a.summary}, impact ${IMPACT.fr[imp] ?? imp}, ${when}. Concerne ${affected}.`;
+    if (lang === 'ar') return `${v} يبلّغ: ${a.summary}، تأثير ${IMPACT.ar[imp] ?? imp}، ${when}. يمس ${affected}.`;
+    return `${v} reports: ${a.summary}, ${imp} impact, ${when}. Affects ${affected}.`;
+  }
   if (a.kind === 'deadline-collision') {
     const day =
       a.facts.daysLeft === 0
@@ -62,7 +73,22 @@ function detail(a: Alert, lang: Lang): string {
   return `${a.issueKey}, ${a.summary}, opened ${when}, ${owner ? `with ${owner}` : 'nobody on it'}.`;
 }
 
+const IMPACT: Record<'fr' | 'ar', Record<string, string>> = {
+  fr: { minor: 'mineur', major: 'majeur', critical: 'critique' },
+  ar: { minor: 'طفيف', major: 'كبير', critical: 'حرج' },
+};
+
 function sureness(a: Alert, lang: Lang): string {
+  if (a.kind === 'outside') {
+    const v = String(a.facts.vendor);
+    if (a.confidence === 'confirmed')
+      return { en: `From ${v}'s status page.`, fr: `Source : la page de statut ${v}.`, ar: `المصدر: صفحة حالة ${v}.` }[lang];
+    return {
+      en: `From ${v}'s status page; the link to your issues is by keyword, so verify.`,
+      fr: `Source : la page de statut ${v} ; le lien avec vos tickets vient de mots-clés, vérifiez.`,
+      ar: `المصدر: صفحة حالة ${v}؛ الربط بمهامك بالكلمات فقط، يرجى التحقق.`,
+    }[lang];
+  }
   if (a.confidence === 'confirmed') return { en: 'Confirmed from Jira.', fr: 'Confirmé par Jira.', ar: 'مؤكد من Jira.' }[lang];
   return {
     en: 'Only keywords suggest this, so please verify.',

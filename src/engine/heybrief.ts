@@ -5,6 +5,7 @@ import { DEFAULT_ALERTS, detectAlerts, type Alert, type AlertConfig } from './al
 import { explainAlert, NO_ALERTS, SNOOZED, speakAlert } from './alert/speak';
 import { driveBrief } from './brief/drive';
 import { proposalLines } from './receipt';
+import { outsideAlerts, type OutsideConfig, type VendorIncident } from './outside/incidents';
 import { classifyReply, getPending, propose, resolvePending } from './confirm';
 import { detectLang } from './lang';
 import type { Deps } from './ports';
@@ -29,6 +30,7 @@ export interface Answer {
 }
 
 const RADAR_TTL = 15 * 60;
+const OUTSIDE_TTL = 120;
 const radarKey = (accountId: string) => `radar:${accountId}`;
 
 /** An alert interrupts once; after that it stays quiet for a week (or until a snooze runs out). */
@@ -42,7 +44,13 @@ const alertLastKey = (accountId: string) => `alert-last:${accountId}`;
 export class HeyBrief {
   constructor(
     private deps: Deps,
-    private opts: { projectKeys?: string[]; radar?: RadarConfig; alerts?: AlertConfig; standupPage?: boolean } = {},
+    private opts: {
+      projectKeys?: string[];
+      radar?: RadarConfig;
+      alerts?: AlertConfig;
+      standupPage?: boolean;
+      outside?: OutsideConfig;
+    } = {},
   ) {}
 
   async talkback(accountId: string, text: string, langHint?: string): Promise<Answer> {
@@ -191,7 +199,10 @@ export class HeyBrief {
 
     const issues = await this.deps.jira.searchOpen(opts.scope ?? { kind: 'me', accountId });
     const now = this.deps.clock.now();
-    const all = detectAlerts(issues, now, accountId, this.opts.alerts ?? DEFAULT_ALERTS).slice(0, MAX_ALERTS_CHECKED);
+    const jira = detectAlerts(issues, now, accountId, this.opts.alerts ?? DEFAULT_ALERTS);
+    // Jira's own alerts come first; outside outages only fill in when they touch open work.
+    const outside = outsideAlerts(await this.outsideIncidents(), issues, now, accountId);
+    const all = [...jira, ...outside].slice(0, MAX_ALERTS_CHECKED);
     if (!all.length) return opts.ask ? { ...quiet, speech: NO_ALERTS[lang] } : quiet;
 
     let top: Alert | undefined;
@@ -223,6 +234,25 @@ export class HeyBrief {
       changes: proposalLines(pending.ops, lang),
       data: { alert: alertJson(top), more },
     };
+  }
+
+  /**
+   * Unresolved vendor incidents, when an admin turned Outside incidents on. Cached for everyone for
+   * two minutes so a page of pollers makes one request per vendor. A failure is silence, never an error.
+   */
+  private async outsideIncidents(): Promise<VendorIncident[]> {
+    const cfg = this.opts.outside;
+    if (!cfg?.enabled || !cfg.vendors.length || !this.deps.status) return [];
+    const key = `outside:${[...cfg.vendors].sort().join(',')}`;
+    const cached = await this.deps.store.get<VendorIncident[]>(key);
+    if (cached) return cached;
+    try {
+      const list = await this.deps.status.unresolved(cfg.vendors);
+      await this.deps.store.set(key, list, OUTSIDE_TTL);
+      return list;
+    } catch {
+      return [];
+    }
   }
 
   /** "Later": cancel the alert's proposed action and bring the alert back after the snooze. */

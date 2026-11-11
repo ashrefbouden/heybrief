@@ -256,6 +256,16 @@ permissions:
     - read:page:confluence
     - write:page:confluence
     - read:space:confluence
+  # Outside incidents (off by default, admin setting): read-only public status pages. Nothing from Jira is sent.
+  external:
+    fetch:
+      backend:
+        - address: www.githubstatus.com
+        - address: bitbucket.status.atlassian.com
+        - address: www.cloudflarestatus.com
+        - address: status.npmjs.org
+        - address: www.vercel-status.com
+        - address: status.datadoghq.com
 
 app:
   id: ari:cloud:ecosystem::app/97ce7671-faa4-49b0-9eb4-30f946f590c9

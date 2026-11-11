@@ -101,7 +101,7 @@ export async function seedDemo(port: SeedPort, input: { projectKey: string; me: 
       assigneeId: realPerson(r.assignee)?.accountId,
       dueDate: r.dueInDays !== undefined ? date(r.dueInDays) : undefined,
       parentKey: r.epic ? keys[r.epic] : undefined,
-      labels: [DEMO_LABEL],
+      labels: [DEMO_LABEL, ...(r.labels ?? [])],
     });
   try {
     for (const r of rows.filter((x) => x.n === 40)) keys[r.n] = await create(r);

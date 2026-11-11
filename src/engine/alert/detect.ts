@@ -7,7 +7,8 @@ import type { Issue, Lang, Op } from '../types';
 import { isBlocked, isOpen } from '../types';
 import { words } from '../words';
 
-export type AlertKind = 'incident' | 'security' | 'deadline-collision' | 'due-today';
+/** 'outside' is a vendor outage from a public status page that touches open work (see outside/incidents.ts). */
+export type AlertKind = 'incident' | 'security' | 'deadline-collision' | 'due-today' | 'outside';
 
 export interface Alert {
   /** Stable id for dedupe: the same event never interrupts twice. */
@@ -32,7 +33,7 @@ export interface Alert {
 }
 
 export interface AlertAction {
-  kind: 'take' | 'ping' | 'start' | 'unblock';
+  kind: 'take' | 'ping' | 'start' | 'unblock' | 'note';
   /** Verb first, completes "Want me to ...?" */
   say: Record<Lang, string>;
   ops: Op[];
@@ -306,7 +307,7 @@ export function detectAlerts(issues: Issue[], now: Date, me: string, cfg: AlertC
     });
   }
 
-  const KIND_RANK: Record<AlertKind, number> = { incident: 0, security: 1, 'deadline-collision': 2, 'due-today': 3 };
+  const KIND_RANK: Record<AlertKind, number> = { incident: 0, security: 1, 'deadline-collision': 2, 'due-today': 3, outside: 4 };
   return out.sort(
     (a, b) =>
       (a.severity === 'critical' ? 0 : 1) - (b.severity === 'critical' ? 0 : 1) ||

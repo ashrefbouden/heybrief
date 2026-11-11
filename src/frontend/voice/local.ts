@@ -7,6 +7,7 @@ import { alertBanner, HeyBrief } from '../../engine/heybrief';
 import type { Clock, Deps } from '../../engine/ports';
 import { FakeConfluence, FakeJira, MemoryStore } from '../../engine/testing/fakes';
 import type { Issue } from '../../engine/types';
+import { VENDOR_IDS, type VendorIncident } from '../../engine/outside/incidents';
 import type { Backend, BoardIssue, Turn } from './types';
 
 const ME = { accountId: 'me-1', displayName: 'You' };
@@ -18,6 +19,7 @@ export function localBackend(): Backend {
   let deps: Deps;
   let hb: HeyBrief;
   let n = 0;
+  let outages: VendorIncident[] = [];
 
   function boot() {
     const { issues, people } = demoDataset(new Date(), ME);
@@ -28,8 +30,10 @@ export function localBackend(): Backend {
       store: new MemoryStore(realClock),
       clock: realClock,
       ids: { next: () => `local-${++n}` },
+      status: { unresolved: async () => outages },
     };
-    hb = new HeyBrief(deps, { projectKeys: ['MP'] });
+    outages = [];
+    hb = new HeyBrief(deps, { projectKeys: ['MP'], outside: { enabled: true, vendors: VENDOR_IDS } });
   }
   boot();
 
@@ -84,6 +88,20 @@ export function localBackend(): Backend {
       } catch {
         return { speech: '', lang, expectReply: false };
       }
+    },
+    async simulateOutage() {
+      outages = [
+        {
+          vendor: 'github',
+          id: `sim-${Date.now()}`,
+          name: 'Degraded performance for GitHub Actions',
+          impact: 'major',
+          status: 'investigating',
+          components: ['Actions'],
+          startedAt: new Date(Date.now() - 6 * 60_000).toISOString(),
+        },
+      ];
+      await deps.store.delete(`outside:${[...VENDOR_IDS].sort().join(',')}`);
     },
     async simulateIncident() {
       const now = new Date().toISOString();

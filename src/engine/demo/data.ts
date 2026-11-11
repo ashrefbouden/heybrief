@@ -33,6 +33,8 @@ interface Row {
   flagged?: boolean;
   blocks?: number[];
   epic?: number;
+  /** Extra labels. 'github' and 'vercel' tie demo work to Outside incidents. */
+  labels?: string[];
 }
 
 const CATEGORY: Record<Row['status'], StatusCategory> = {
@@ -56,6 +58,7 @@ export function demoRows(me: Person): Row[] {
       reporter: sami,
       dueInDays: 1,
       statusDaysAgo: 2,
+      labels: ['github'],
     },
     {
       n: 15,
@@ -133,6 +136,7 @@ export function demoRows(me: Person): Row[] {
       reporter: sami,
       dueInDays: -2,
       statusDaysAgo: 4,
+      labels: ['vercel'],
     },
 
     // Quiet background
@@ -171,6 +175,7 @@ export function demoDataset(now: Date, me: Person): { issues: Issue[]; people: P
     blocks: (r.blocks ?? []).map(key),
     blockedBy: [],
     epicKey: r.epic ? key(r.epic) : undefined,
+    labels: r.labels ?? [],
   }));
   const byKey = new Map(issues.map((i) => [i.key, i]));
   for (const i of issues) for (const b of i.blocks) byKey.get(b)?.blockedBy.push(i.key);

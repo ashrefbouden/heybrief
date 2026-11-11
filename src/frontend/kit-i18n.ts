@@ -48,8 +48,13 @@ const en = {
   tryIt: 'Try it',
   trySay: 'On the HeyBrief page or in Rovo chat, say:',
   notAdmin: 'Only Jira admins can change projects or load demo data. Everything else works for you already.',
+  outsideTitle: 'Outside incidents',
+  outsideBody: 'Watch public status pages of the services your team uses. HeyBrief interrupts only when an outage matches open Jira work, and proposes a note on those issues behind the same yes. Off by default: when off, HeyBrief makes no outbound call at all.',
+  outsideToggle: 'Watch vendor status pages',
+  outsideVendors: 'Services to watch',
+  outsideSaved: (on: boolean): string => (on ? 'Outside incidents are on.' : 'Outside incidents are off. No outbound calls.'),
   privacyTitle: 'Data and privacy',
-  privacyBody: 'HeyBrief runs on Atlassian Forge as you, with your Jira permissions. Your data stays on Atlassian: no outside servers, and the AI is Forge’s own.',
+  privacyBody: 'HeyBrief runs on Atlassian Forge as you, with your Jira permissions. Your Jira data stays on Atlassian and the AI is Forge’s own. The only outbound call is the optional Outside incidents check, which downloads public status pages and sends nothing.',
 };
 type K = typeof en;
 
@@ -94,8 +99,13 @@ const fr: K = {
   tryIt: 'Essayez',
   trySay: 'Sur la page HeyBrief ou dans Rovo, dites :',
   notAdmin: 'Seuls les admins Jira peuvent changer les projets ou charger la démo. Tout le reste fonctionne déjà pour vous.',
+  outsideTitle: 'Incidents externes',
+  outsideBody: 'Surveille les pages de statut publiques des services de votre équipe. HeyBrief n’interrompt que si une panne touche un ticket ouvert, et propose une note sur ces tickets avec le même oui. Désactivé par défaut : désactivé, HeyBrief ne fait aucun appel sortant.',
+  outsideToggle: 'Surveiller les pages de statut',
+  outsideVendors: 'Services à surveiller',
+  outsideSaved: (on) => (on ? 'Incidents externes activés.' : 'Incidents externes désactivés. Aucun appel sortant.'),
   privacyTitle: 'Données et confidentialité',
-  privacyBody: 'HeyBrief tourne sur Atlassian Forge en votre nom, avec vos permissions Jira. Vos données restent chez Atlassian : aucun serveur externe, et l’IA est celle de Forge.',
+  privacyBody: 'HeyBrief tourne sur Atlassian Forge en votre nom, avec vos permissions Jira. Vos données Jira restent chez Atlassian et l’IA est celle de Forge. Le seul appel sortant est l’option Incidents externes, qui lit des pages de statut publiques et n’envoie rien.',
 };
 
 const ar: K = {
@@ -139,8 +149,13 @@ const ar: K = {
   tryIt: 'جرّب',
   trySay: 'في صفحة HeyBrief أو في Rovo قل:',
   notAdmin: 'وحدهم مسؤولو Jira يستطيعون تغيير المشاريع أو تحميل بيانات العرض. كل ما عدا ذلك يعمل لك الآن.',
+  outsideTitle: 'حوادث خارجية',
+  outsideBody: 'يراقب صفحات الحالة العامة للخدمات التي يستخدمها فريقك. لا يقاطعك HeyBrief إلا إذا مسّ عطلٌ مهمة مفتوحة، ويقترح ملاحظة على تلك المهام بعد موافقتك نفسها. متوقف افتراضيا: عند إيقافه لا يجري HeyBrief أي اتصال خارجي.',
+  outsideToggle: 'مراقبة صفحات حالة الخدمات',
+  outsideVendors: 'الخدمات المراقَبة',
+  outsideSaved: (on) => (on ? 'الحوادث الخارجية مفعّلة.' : 'الحوادث الخارجية متوقفة. لا اتصالات خارجية.'),
   privacyTitle: 'البيانات والخصوصية',
-  privacyBody: 'يعمل HeyBrief على Atlassian Forge باسمك وبصلاحياتك في Jira. تبقى بياناتك لدى Atlassian: لا خوادم خارجية، والذكاء الاصطناعي هو ذكاء Forge نفسه.',
+  privacyBody: 'يعمل HeyBrief على Atlassian Forge باسمك وبصلاحياتك في Jira. تبقى بيانات Jira لدى Atlassian والذكاء الاصطناعي هو ذكاء Forge نفسه. الاتصال الخارجي الوحيد هو خيار الحوادث الخارجية، الذي يقرأ صفحات حالة عامة ولا يرسل شيئا.',
 };
 
 export const KIT: Record<KitLang, K> = { en, fr, ar };

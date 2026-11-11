@@ -134,7 +134,17 @@ function hideAuditComments<T>(items: T[], opOf: (x: T) => Op, keep: (x: T) => bo
 
 /** What the yes card lists: one line per real change, in the speaker's language. */
 export function proposalLines(ops: Op[], lang: Lang = 'en'): string[] {
-  return hideAuditComments(ops, (o) => o).map((o) => describeOp(o, lang));
+  return hideAuditComments(ops, (o) => o).map((o) => {
+    const line = describeOp(o, lang);
+    if (o.type !== 'comment') return line;
+    // A comment that IS the change: show what it will say, without the audit tag or links.
+    const said = o.body
+      .replace(/\s*\((?:via )?HeyBrief[^)]*\)\s*$/, '')
+      .replace(/\s*Status: \S+/, '')
+      .trim();
+    if (!said || said.length < 4) return line;
+    return `${line}: “${said.length > 90 ? said.slice(0, 89).trimEnd() + '…' : said}”`;
+  });
 }
 
 export function describeResult(r: OpResult, lang: Lang = 'en'): ReceiptLine {

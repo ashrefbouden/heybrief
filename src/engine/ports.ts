@@ -2,6 +2,7 @@
 // Forge implementations live in src/forge; in-memory fakes in src/engine/testing.
 
 import type { Issue, Lang, Scope, Transition } from './types';
+import type { StatusPort } from './outside/incidents';
 
 export interface JiraPort {
   /** Open issues in scope, capped (Forge adapter caps at 50 to stay inside the function timeout). */
@@ -62,4 +63,6 @@ export interface Deps {
   clock: Clock;
   ids: IdGen;
   phraser?: Phraser;
+  /** Public vendor status pages, for Outside incidents. Absent means the feature is off. */
+  status?: StatusPort;
 }

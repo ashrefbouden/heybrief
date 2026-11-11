@@ -44,6 +44,8 @@ export interface Backend {
   alerts?(lang: Lang): Promise<Turn>;
   /** Prototype only: drop a Highest-priority outage into the simulated Jira, to show the heads-up. */
   simulateIncident?(): Promise<void>;
+  /** Prototype only: a vendor status page reports an outage that touches demo work. */
+  simulateOutage?(): Promise<void>;
   /** Prototype only: start the story again. */
   reset?(): Promise<void>;
 }

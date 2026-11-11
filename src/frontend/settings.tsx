@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import ForgeReconciler, {
   Box,
   Button,
+  Checkbox,
   Code,
   Heading,
   Inline,
@@ -13,15 +14,26 @@ import ForgeReconciler, {
   Stack,
   Text,
   Textfield,
+  Toggle,
   useProductContext,
   xcss,
 } from '@forge/react';
 import { call } from './call';
 import { KIT, langFromLocale } from './kit-i18n';
 
+type VendorId = 'github' | 'bitbucket' | 'cloudflare' | 'npm' | 'vercel' | 'datadog';
+const VENDORS: Array<[VendorId, string]> = [
+  ['github', 'GitHub'],
+  ['bitbucket', 'Bitbucket'],
+  ['cloudflare', 'Cloudflare'],
+  ['npm', 'npm'],
+  ['vercel', 'Vercel'],
+  ['datadog', 'Datadog'],
+];
 interface Settings {
   projectKeys: string[];
   standupSpaceKey: string;
+  outside: { enabled: boolean; vendors: VendorId[] };
   isAdmin: boolean;
 }
 interface SeedResult {
@@ -74,6 +86,13 @@ function App() {
     }
   };
 
+  const saveOutside = (outside: Settings['outside']) =>
+    run(async () => {
+      const x = await call<Settings>('saveSettings', { outside });
+      setSettings({ ...settings!, ...x, isAdmin: settings!.isAdmin });
+      setNote({ kind: 'success', text: s.outsideSaved(x.outside.enabled) });
+    });
+
   if (failed)
     return (
       <SectionMessage appearance="error">
@@ -124,6 +143,49 @@ function App() {
                 {s.save}
               </Button>
             </Inline>
+          </Stack>
+        </Box>
+      )}
+
+      {settings.isAdmin && (
+        <Box xcss={panel}>
+          <Stack space="space.150">
+            <Heading size="small">{s.outsideTitle}</Heading>
+            <Text>{s.outsideBody}</Text>
+            <Inline space="space.100" alignBlock="center">
+              <Toggle
+                id="outside"
+                isChecked={settings.outside.enabled}
+                isDisabled={busy}
+                onChange={() => saveOutside({ ...settings.outside, enabled: !settings.outside.enabled })}
+              />
+              <Label labelFor="outside">{s.outsideToggle}</Label>
+            </Inline>
+            {settings.outside.enabled && (
+              <Stack space="space.050">
+                <Text size="small" color="color.text.subtle">
+                  {s.outsideVendors}
+                </Text>
+                <Inline space="space.200" shouldWrap>
+                  {VENDORS.map(([id, name]) => (
+                    <Checkbox
+                      key={id}
+                      label={name}
+                      isDisabled={busy}
+                      isChecked={settings.outside.vendors.includes(id)}
+                      onChange={() =>
+                        saveOutside({
+                          ...settings.outside,
+                          vendors: settings.outside.vendors.includes(id)
+                            ? settings.outside.vendors.filter((v) => v !== id)
+                            : [...settings.outside.vendors, id],
+                        })
+                      }
+                    />
+                  ))}
+                </Inline>
+              </Stack>
+            )}
           </Stack>
         </Box>
       )}
