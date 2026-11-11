@@ -131,6 +131,8 @@ export class ForgeJira implements JiraPort {
       if (!(scope.kind === 'me' && base && /Jira 400/.test(String(e)))) throw e;
       issues = await this.runJql(`statusCategory != Done ORDER BY updated DESC`, flag);
     }
+    // Configured projects empty for this person (wrong key saved): look at everything they can see.
+    if (!issues.length && scope.kind === 'me' && base) issues = await this.runJql(`statusCategory != Done ORDER BY updated DESC`, flag);
     if (this.mode.kind === 'user') return issues;
     const visible = await this.canBrowse(
       this.mode.accountId,

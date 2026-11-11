@@ -100,7 +100,12 @@ export function driveBrief(input: {
   const budget = budgetFor(input.etaMinutes);
   const ranked = rankMyDay(input.issues, input.accountId, today).slice(0, budget.things);
   const decision = budget.decisions ? input.risks[0] : undefined;
-  if (!ranked.length && !decision) return { speech: t.nothingToday, keys: [] };
+  if (!ranked.length && !decision) {
+    // Say what HeyBrief can see, so an empty answer is never a dead end.
+    const open = input.issues.filter(isOpen).length;
+    if (!open) return { speech: t.noIssuesVisible, keys: [] };
+    return { speech: `${t.nothingToday} ${t.teamOpen(open)}`, keys: [] };
+  }
 
   const minutes = input.etaMinutes !== undefined ? Math.max(1, Math.round(input.etaMinutes)) : undefined;
   const header = minutes !== undefined ? t.driveHeader(minutes, ranked.length, decision ? 1 : 0) : '';

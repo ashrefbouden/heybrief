@@ -89,7 +89,9 @@ const en = {
   want: (fix: string) => `Want me to ${fix}?`,
   driveHeader: (min: number, things: number, decisions: number) =>
     `You have ${min} minutes: ${things} ${things === 1 ? 'thing' : 'things'}${decisions ? `, ${decisions} decision` : ''}.`,
-  nothingToday: 'Your plate is clear today.',
+  nothingToday: 'Nothing open is assigned to you.',
+  teamOpen: (n: number) => `Your team has ${n} open ${n === 1 ? 'issue' : 'issues'}. Ask what's at risk.`,
+  noIssuesVisible: 'I can’t see any open Jira issues. An admin can pick projects or load demo data in HeyBrief settings.',
   error: 'HeyBrief could not reach Jira just now. Nothing was changed. Try again in a moment.',
   slow: 'Jira is slow right now. If you just said yes, check the receipt before trying again.',
   tooManyWrites: 'That is a lot of changes this hour. I paused writes for safety. Try again later.',
@@ -125,7 +127,9 @@ const fr: Phrases = {
   want: (fix: string) => `Voulez-vous que je ${fix} ?`,
   driveHeader: (min: number, things: number, decisions: number) =>
     `Vous avez ${min} minutes : ${things} ${things === 1 ? 'sujet' : 'sujets'}${decisions ? `, ${decisions} décision` : ''}.`,
-  nothingToday: 'Rien d’urgent aujourd’hui.',
+  nothingToday: 'Rien d’ouvert ne vous est assigné.',
+  teamOpen: (n: number) => `Votre équipe a ${n} ticket${n > 1 ? 's' : ''} ouvert${n > 1 ? 's' : ''}. Demandez les risques.`,
+  noIssuesVisible: 'Je ne vois aucun ticket Jira ouvert. Un admin peut choisir les projets ou charger la démo dans les réglages HeyBrief.',
   error: 'HeyBrief n’a pas pu joindre Jira. Rien n’a changé. Réessayez dans un instant.',
   slow: 'Jira est lent. Si vous venez de dire oui, vérifiez le reçu avant de réessayer.',
   tooManyWrites: 'Beaucoup de changements cette heure-ci. Écritures en pause par sécurité. Réessayez plus tard.',
@@ -159,7 +163,9 @@ const ar: Phrases = {
   want: (fix: string) => `هل تريد أن ${fix}؟`,
   driveHeader: (min: number, things: number, decisions: number) =>
     `لديك ${min} دقيقة: ${things} مواضيع${decisions ? '، وقرار واحد' : ''}.`,
-  nothingToday: 'لا شيء عاجل اليوم.',
+  nothingToday: 'لا مهام مفتوحة مسندة إليك.',
+  teamOpen: (n: number) => `لدى فريقك ${n} مهام مفتوحة. اسأل عن المخاطر.`,
+  noIssuesVisible: 'لا أرى أي مهام مفتوحة في Jira. يمكن للمسؤول اختيار المشاريع أو تحميل بيانات العرض من إعدادات HeyBrief.',
   error: 'تعذّر الوصول إلى Jira الآن. لم يتغير شيء. حاول بعد قليل.',
   slow: 'Jira بطيء الآن. إن قلت نعم للتو فراجع الإيصال قبل المحاولة مجددا.',
   tooManyWrites: 'تغييرات كثيرة في هذه الساعة. أوقفت الكتابة احتياطا. حاول لاحقا.',
