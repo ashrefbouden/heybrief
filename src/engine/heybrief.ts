@@ -11,7 +11,7 @@ import type { Deps } from './ports';
 import { DEFAULT_RADAR, runRadar, type RadarConfig, type Risk } from './risk/radar';
 import { explainRisk, speakRadar } from './risk/speak';
 import { normaliseKeys, parseUpdate } from './talkback/parse';
-import { T } from './speak';
+import { extractKeys, guardPhrase, T } from './speak';
 import { planTalkback } from './talkback/plan';
 import type { Lang, Scope } from './types';
 import { words } from './words';
@@ -165,10 +165,11 @@ export class HeyBrief {
     const risks = runRadar(issues, now, accountId, this.opts.radar ?? DEFAULT_RADAR);
     await this.deps.store.set(radarKey(accountId), risks, RADAR_TTL);
     const b = driveBrief({ issues, risks, accountId, now, lang, etaMinutes: opts.etaMinutes });
-    if (!b.decision) return { speech: b.speech, lang, expectReply: false, data: { keys: b.keys } };
-    const pending = await this.proposeFix(accountId, b.decision, b.speech, opts.text);
+    const speech = await this.phrase(b, lang);
+    if (!b.decision) return { speech, lang, expectReply: false, data: { keys: b.keys, phrased: speech !== b.speech } };
+    const pending = await this.proposeFix(accountId, b.decision, speech, opts.text);
     return {
-      speech: b.speech,
+      speech,
       lang,
       expectReply: true,
       pendingId: pending.id,
@@ -235,6 +236,23 @@ export class HeyBrief {
       await this.deps.store.set(key, this.deps.clock.now().toISOString(), ALERT_SNOOZE_MINUTES * 60);
     }
     return { speech: SNOOZED[lang](ALERT_SNOOZE_MINUTES), lang, expectReply: false };
+  }
+
+  /**
+   * Forge LLM rewords the brief's lead so it sounds natural. Rules and facts stay in code: the guard
+   * drops any reply that names an issue key not in the facts, runs long, or comes late, and the
+   * template is spoken instead. The question that asks for a yes is never reworded.
+   */
+  private async phrase(b: { speech: string; lead?: string; ask?: string; facts?: string }, lang: Lang): Promise<string> {
+    if (!this.deps.phraser || !b.lead || !b.facts) return b.speech;
+    const askWords = b.ask ? b.ask.split(/\s+/).length : 0;
+    try {
+      const out = await this.deps.phraser.phrase({ facts: b.facts, draft: b.lead, lang, maxWords: 60 - askWords });
+      const safe = guardPhrase(out, extractKeys(b.facts + ' ' + b.lead), 60 - askWords);
+      return safe ? `${safe} ${b.ask ?? ''}`.trim() : b.speech;
+    } catch {
+      return b.speech;
+    }
   }
 
   /** `heard` is what the person said, shown on the receipt; falls back to the read-back for button-driven proposals. */

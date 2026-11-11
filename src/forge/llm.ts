@@ -5,7 +5,8 @@ import { chat, list } from '@forge/llm';
 import type { Phraser } from '../engine/ports';
 import { extractKeys, guardPhrase } from '../engine/speak';
 
-const TIMEOUT_MS = 8000;
+/** A spoken brief cannot wait long: past this the template answer is spoken instead. */
+const TIMEOUT_MS = 4500;
 let modelId: string | undefined;
 
 /** Pick a Haiku-class model from what the platform offers instead of hard-coding an id. */
@@ -31,7 +32,7 @@ export const forgePhraser: Phraser = {
           {
             role: 'system',
             content:
-              `Rewrite the draft as natural speech for someone driving, in ${LANG_NAME[lang]}. ` +
+              `Rewrite the draft as a natural spoken morning brief, in ${LANG_NAME[lang]}. Lead with what matters most. ` +
               `At most ${maxWords} words. Use only the facts given. Keep every issue key exactly as written. ` +
               `Never add issue keys, names, dates or numbers that are not in the facts. Output only the sentence.`,
           },
