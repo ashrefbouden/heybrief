@@ -30,7 +30,7 @@ Open **Apps > HeyBrief** in the Jira top bar. Allow the microphone if asked.
 ## Also try
 
 - **Rovo chat:** open Rovo, pick the **HeyBrief** agent, and ask "What's on my plate today?". The same yes gate applies: Rovo shows the proposed changes and waits for your own yes.
-- **Any MCP client:** the same eight actions are exposed as MCP tools.
+- **Any MCP client (Claude, Cursor, VS Code):** the same eight actions are MCP tools. A site admin first turns on external access in **admin.atlassian.com > Apps > Sites > your site > Connected apps > HeyBrief**. Then add the MCP server `https://mcp.atlassian.com/forge/97ce7671-faa4-49b0-9eb4-30f946f590c9` to your client and sign in. Writes still wait for your own yes, passed back with `confirm-change`.
 - **Safety:** say something other than yes while a change is waiting. It is cancelled and nothing changes. A proposal also expires after 2 minutes.
 
 ## Without a Jira site
