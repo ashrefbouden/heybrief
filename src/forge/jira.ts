@@ -209,6 +209,23 @@ export class ForgeJira implements JiraPort {
     });
   }
 
+  async unlinkBlocks(blockerKey: string, blockedKey: string) {
+    const raw = await this.json<any>(route`/rest/api/3/issue/${blockedKey}?fields=issuelinks`);
+    // Same reading as toIssue(): on the blocked issue, the blocker sits in inwardIssue.
+    const link = (raw?.fields?.issuelinks ?? []).find(
+      (l: any) => l.type?.name === 'Blocks' && (l.inwardIssue?.key === blockerKey || l.outwardIssue?.key === blockerKey),
+    );
+    if (!link?.id) return;
+    const res = await this.req(route`/rest/api/3/issueLink/${String(link.id)}`, { method: 'DELETE' });
+    if (!res.ok && res.status !== 404) throw new Error(`unlink failed (${res.status})`);
+  }
+
+  async deleteIssue(key: string) {
+    const res = await this.req(route`/rest/api/3/issue/${key}`, { method: 'DELETE' });
+    if (res.status === 403) throw new Error('you lack permission to delete issues');
+    if (!res.ok && res.status !== 404) throw new Error(`delete failed (${res.status})`);
+  }
+
   async assign(key: string, accountId: string | null) {
     await this.json(route`/rest/api/3/issue/${key}/assignee`, { method: 'PUT', body: JSON.stringify({ accountId }) });
   }

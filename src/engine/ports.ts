@@ -12,6 +12,10 @@ export interface JiraPort {
   addComment(key: string, body: string, mentions?: string[]): Promise<void>;
   setFlag(key: string, flagged: boolean): Promise<void>;
   linkBlocks(blockerKey: string, blockedKey: string): Promise<void>;
+  /** Remove a Blocks link (undo). No-op when the link is already gone. */
+  unlinkBlocks(blockerKey: string, blockedKey: string): Promise<void>;
+  /** Delete an issue (undo of a follow-up HeyBrief created). Jira enforces the delete permission. */
+  deleteIssue(key: string): Promise<void>;
   assign(key: string, accountId: string | null): Promise<void>;
   notify(key: string, accountIds: string[], subject: string, body: string): Promise<void>;
   createIssue(input: { projectKey: string; summary: string; assigneeId?: string; dueDate?: string }): Promise<string>;

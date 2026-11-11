@@ -4,6 +4,7 @@
 import { DEFAULT_ALERTS, detectAlerts, type Alert, type AlertConfig } from './alert/detect';
 import { explainAlert, NO_ALERTS, SNOOZED, speakAlert } from './alert/speak';
 import { driveBrief } from './brief/drive';
+import { proposalLines } from './receipt';
 import { classifyReply, getPending, propose, resolvePending } from './confirm';
 import { detectLang } from './lang';
 import type { Deps } from './ports';
@@ -22,6 +23,8 @@ export interface Answer {
   expectReply: boolean;
   /** Present when a write is waiting for a yes. Rovo/MCP must pass it back to confirm. */
   pendingId?: string;
+  /** The writes waiting for a yes, one plain line each, in `lang`. Shown on the yes card. */
+  changes?: string[];
   data?: unknown;
 }
 
@@ -58,6 +61,7 @@ export class HeyBrief {
       lang: parsed.lang,
       expectReply: true,
       pendingId: pending.id,
+      changes: proposalLines(plan.ops, parsed.lang),
       data: { changes: plan.changeCount, problems: plan.problems, ops: plan.ops },
     };
   }
@@ -81,7 +85,14 @@ export class HeyBrief {
     const speech = speakRadar(risks, lang);
     if (!risks.length) return { speech, lang, expectReply: false, data: { risks } };
     const pending = await this.proposeFix(accountId, risks[0], speech, text);
-    return { speech, lang, expectReply: true, pendingId: pending.id, data: { risks: risks.map(riskJson) } };
+    return {
+      speech,
+      lang,
+      expectReply: true,
+      pendingId: pending.id,
+      changes: proposalLines(pending.ops, lang),
+      data: { risks: risks.map(riskJson) },
+    };
   }
 
   /** Desk gadget: run and cache the radar WITHOUT proposing a fix (must not clobber a pending Siri write). */
@@ -96,13 +107,16 @@ export class HeyBrief {
    * Desk gadget: propose the fix for risk n from the last radar run. The gadget then shows the
    * read-back and a Confirm button, which calls confirm() with the pending id. Two human clicks.
    */
-  async proposeRiskFix(accountId: string, n = 1): Promise<Answer> {
+  async proposeRiskFix(accountId: string, n = 1, lang: Lang = 'en'): Promise<Answer> {
     const risks = await this.deps.store.get<Risk[]>(radarKey(accountId));
     const risk = risks?.[n - 1];
-    if (!risk) return { speech: 'Run Risk Radar first.', lang: 'en', expectReply: false };
-    const speech = `${risk.rootKey}: ${T.en.want(risk.fix.say.en)}`;
+    if (!risk) {
+      const speech = lang === 'fr' ? 'Lancez d’abord le radar.' : lang === 'ar' ? 'شغّل رادار المخاطر أولا.' : 'Run Risk Radar first.';
+      return { speech, lang, expectReply: false };
+    }
+    const speech = `${risk.rootKey}: ${T[lang].want(risk.fix.say[lang])}`;
     const pending = await this.proposeFix(accountId, risk, speech);
-    return { speech, lang: 'en', expectReply: true, pendingId: pending.id, data: riskJson(risk) };
+    return { speech, lang, expectReply: true, pendingId: pending.id, changes: proposalLines(pending.ops, lang), data: riskJson(risk) };
   }
 
   /** "Why?" about the last radar run: risk n (1-based) or the top one. */
@@ -117,6 +131,7 @@ export class HeyBrief {
           lang,
           expectReply: true,
           pendingId: pendingAlert.id,
+          changes: proposalLines(pendingAlert.ops, lang),
           data: alertJson(last[0]),
         };
     }
@@ -129,7 +144,14 @@ export class HeyBrief {
     }
     // Keep the pending fix alive: the user may say yes after hearing why.
     const pending = await getPending(this.deps, accountId);
-    return { speech: explainRisk(risk, lang), lang, expectReply: !!pending, pendingId: pending?.id, data: riskJson(risk) };
+    return {
+      speech: explainRisk(risk, lang),
+      lang,
+      expectReply: !!pending,
+      pendingId: pending?.id,
+      changes: pending ? proposalLines(pending.ops, lang) : undefined,
+      data: riskJson(risk),
+    };
   }
 
   async brief(
@@ -150,6 +172,7 @@ export class HeyBrief {
       lang,
       expectReply: true,
       pendingId: pending.id,
+      changes: proposalLines(pending.ops, lang),
       data: { keys: b.keys, decision: riskJson(b.decision) },
     };
   }
@@ -191,7 +214,14 @@ export class HeyBrief {
       heard: opts.text?.trim() || speech,
       readback: speech,
     });
-    return { speech, lang, expectReply: true, pendingId: pending.id, data: { alert: alertJson(top), more } };
+    return {
+      speech,
+      lang,
+      expectReply: true,
+      pendingId: pending.id,
+      changes: proposalLines(pending.ops, lang),
+      data: { alert: alertJson(top), more },
+    };
   }
 
   /** "Later": cancel the alert's proposed action and bring the alert back after the snooze. */
@@ -303,7 +333,7 @@ function riskJson(r: Risk) {
     label: r.label,
     signals: r.signals.map((s) => ({ id: s.id, rule: s.rule, label: s.label, evidence: s.evidence })),
     sources: r.sources,
-    proposed_fix: { kind: r.fix.kind, say: r.fix.say.en },
+    proposed_fix: { kind: r.fix.kind, say: r.fix.say.en, say_by_lang: r.fix.say },
   };
 }
 

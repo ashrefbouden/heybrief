@@ -65,6 +65,10 @@ export type Op =
   | { type: 'comment'; issueKey: string; body: string; mentions?: string[] }
   | { type: 'flag'; issueKey: string; flagged: boolean }
   | { type: 'link-blocks'; blockerKey: string; blockedKey: string }
+  /** Undo of link-blocks. */
+  | { type: 'unlink-blocks'; blockerKey: string; blockedKey: string }
+  /** Undo of create-issue: only ever targets an issue HeyBrief created. */
+  | { type: 'delete-issue'; issueKey: string }
   | { type: 'assign'; issueKey: string; accountId: string }
   | { type: 'notify'; issueKey: string; accountIds: string[]; subject: string; body: string }
   | {
@@ -92,6 +96,8 @@ export interface Receipt {
   at: string;
   kind: PendingKind;
   heard: string;
+  /** What HeyBrief read back before the yes. Optional: receipts stored before Nov 11 lack it. */
+  readback?: string;
   results: OpResult[];
 }
 

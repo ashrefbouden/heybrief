@@ -23,10 +23,18 @@ const str = (v: unknown, max = 100) => (typeof v === 'string' ? v.slice(0, max) 
 // ---- Voice page ----
 const LANGS = new Set(['en', 'fr', 'ar']);
 const langOf = (v: unknown): Lang | undefined => (typeof v === 'string' && LANGS.has(v) ? (v as Lang) : undefined);
-const turn = (a: { speech: string; lang: Lang; pendingId?: string; expectReply: boolean; failed?: string }) => ({
+const turn = (a: {
+  speech: string;
+  lang: Lang;
+  pendingId?: string;
+  changes?: string[];
+  expectReply: boolean;
+  failed?: string;
+}) => ({
   speech: a.speech,
   lang: a.lang,
   pendingId: a.pendingId,
+  changes: a.pendingId ? a.changes : undefined,
   expectReply: a.expectReply,
   failed: a.failed,
 });
@@ -92,7 +100,9 @@ resolver.define('board', async ({ context }) => {
 });
 
 // ---- Drive receipt gadget ----
-resolver.define('getReceipts', async ({ context }) => listReceiptViews({ store: forgeStore }, me(context)));
+resolver.define('getReceipts', async ({ payload, context }) =>
+  listReceiptViews({ store: forgeStore }, me(context), langOf((payload as any)?.lang)),
+);
 
 resolver.define('undo', async ({ payload, context }) => {
   const { deps } = await engineFor({ kind: 'user' });
@@ -109,8 +119,8 @@ resolver.define('getRisks', async ({ context }) => {
 resolver.define('proposeRiskFix', async ({ payload, context }) => {
   const { hb } = await engineFor({ kind: 'user' });
   const n = Math.min(3, Math.max(1, Number((payload as any)?.rank) || 1));
-  const a = await hb.proposeRiskFix(me(context), n);
-  return { readback: a.speech, pendingId: a.pendingId };
+  const a = await hb.proposeRiskFix(me(context), n, langOf((payload as any)?.lang));
+  return { readback: a.speech, pendingId: a.pendingId, changes: a.changes ?? [] };
 });
 
 /** Step 2 of 2: the user clicked Confirm (or Cancel). */
@@ -118,7 +128,8 @@ resolver.define('resolvePending', async ({ payload, context }) => {
   const { hb } = await engineFor({ kind: 'user' });
   const p = payload as any;
   const reply = p?.confirm === true ? 'yes' : 'no';
-  const a = await hb.safely('en', () => hb.confirm(me(context), reply, str(p?.pendingId)));
+  const lang = langOf(p?.lang) ?? 'en';
+  const a = await hb.safely(lang, () => hb.confirm(me(context), reply, str(p?.pendingId), lang));
   return { speech: a.speech };
 });
 

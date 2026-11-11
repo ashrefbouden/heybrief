@@ -30,7 +30,8 @@ export async function executeOps(
 
   for (const op of ops) {
     try {
-      const key = 'issueKey' in op ? op.issueKey : op.type === 'link-blocks' ? op.blockedKey : undefined;
+      const key =
+        'issueKey' in op ? op.issueKey : op.type === 'link-blocks' || op.type === 'unlink-blocks' ? op.blockedKey : undefined;
       if (key && !(await can(key))) {
         results.push({ op, ok: false, error: 'permission denied' });
         continue;
@@ -67,8 +68,22 @@ export async function executeOps(
           await jira.setFlag(op.issueKey, op.flagged);
           results.push({ op, ok: true, undo: { type: 'flag', issueKey: op.issueKey, flagged: !op.flagged } });
           break;
-        case 'link-blocks':
+        case 'link-blocks': {
+          const before = await jira.getIssue(op.blockedKey);
+          if (before?.blockedBy.includes(op.blockerKey)) {
+            results.push({ op, ok: true, error: 'already linked' });
+            break;
+          }
           await jira.linkBlocks(op.blockerKey, op.blockedKey);
+          results.push({ op, ok: true, undo: { type: 'unlink-blocks', blockerKey: op.blockerKey, blockedKey: op.blockedKey } });
+          break;
+        }
+        case 'unlink-blocks':
+          await jira.unlinkBlocks(op.blockerKey, op.blockedKey);
+          results.push({ op, ok: true });
+          break;
+        case 'delete-issue':
+          await jira.deleteIssue(op.issueKey);
           results.push({ op, ok: true });
           break;
         case 'assign': {
@@ -88,7 +103,8 @@ export async function executeOps(
         case 'create-issue': {
           const createdKey = await jira.createIssue(op);
           if (op.linkToKey) await jira.linkBlocks(createdKey, op.linkToKey);
-          results.push({ op, ok: true, createdKey });
+          // Deleting the follow-up also removes its link.
+          results.push({ op, ok: true, createdKey, undo: { type: 'delete-issue', issueKey: createdKey } });
           break;
         }
         case 'standup-page': {

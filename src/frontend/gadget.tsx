@@ -1,11 +1,10 @@
-// "Drive receipt" dashboard gadget: what you heard and approved on the way in, with undo,
-// plus Risk Radar with a two-click fix (Propose -> Confirm). The desk experience must stand alone
+// "HeyBrief receipt" dashboard gadget: what you said and approved by voice, with undo,
+// plus Risk Radar with a two-click fix (Review fix -> Yes). The desk experience must stand alone
 // for judges, who test at a desk, not in a car.
 import React, { useEffect, useState } from 'react';
 import ForgeReconciler, {
   Box,
   Button,
-  ButtonGroup,
   Heading,
   Inline,
   Lozenge,
@@ -13,9 +12,11 @@ import ForgeReconciler, {
   Spinner,
   Stack,
   Text,
+  useProductContext,
   xcss,
 } from '@forge/react';
 import { call } from './call';
+import { KIT, langFromLocale, type KitLang } from './kit-i18n';
 
 interface Line {
   text: string;
@@ -27,6 +28,7 @@ interface ReceiptView {
   at: string;
   kind: 'talkback' | 'risk-fix' | 'alert';
   heard: string;
+  readback?: string;
   lines: Line[];
   allOk: boolean;
   canUndo: boolean;
@@ -39,43 +41,55 @@ interface RiskJson {
   label: 'confirmed' | 'estimated';
   sources: string[];
   signals: Array<{ rule: string }>;
-  proposed_fix: { say: string };
+  proposed_fix: { say: string; say_by_lang?: Record<KitLang, string> };
+}
+interface Pending {
+  readback: string;
+  pendingId: string;
+  changes: string[];
 }
 
 const card = xcss({
   padding: 'space.150',
-  borderRadius: 'radius.medium',
+  borderRadius: 'radius.large',
   borderWidth: 'border.width',
   borderStyle: 'solid',
   borderColor: 'color.border',
+  backgroundColor: 'elevation.surface.raised',
 });
-const time = (iso: string) => new Date(iso).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+const accentOk = xcss({ borderLeftWidth: 'border.width.selected', borderLeftColor: 'color.border.success' });
+const accentWarn = xcss({ borderLeftWidth: 'border.width.selected', borderLeftColor: 'color.border.warning' });
+const accentRisk = xcss({ borderLeftWidth: 'border.width.selected', borderLeftColor: 'color.border.danger' });
 
-function Receipt({ r, onUndo, busy }: { r: ReceiptView; onUndo: () => void; busy: boolean }) {
+function Receipt({ r, onUndo, busy, s, lang }: { r: ReceiptView; onUndo: () => void; busy: boolean; s: typeof KIT.en; lang: KitLang }) {
+  const when = new Date(r.at).toLocaleString(lang, { weekday: 'short', hour: '2-digit', minute: '2-digit' });
   return (
-    <Box xcss={card}>
-      <Stack space="space.075">
+    <Box xcss={[card, r.allOk ? accentOk : accentWarn]}>
+      <Stack space="space.100">
         <Inline space="space.100" alignBlock="center" spread="space-between">
           <Inline space="space.100" alignBlock="center">
-            <Lozenge appearance={r.undone ? 'default' : r.allOk ? 'success' : 'moved'}>
-              {r.undone ? 'Undone' : r.kind === 'talkback' ? 'Status update' : r.kind === 'alert' ? 'Urgent alert' : 'Risk fix'}
+            <Lozenge appearance={r.undone ? 'default' : r.kind === 'alert' ? 'removed' : r.kind === 'risk-fix' ? 'moved' : 'inprogress'}>
+              {r.undone ? s.undone : (s.kind[r.kind] ?? r.kind)}
             </Lozenge>
-            <Text size="small">{time(r.at)}</Text>
+            <Text size="small" color="color.text.subtlest">
+              {when}
+            </Text>
           </Inline>
           {r.canUndo && (
-            <Button appearance="subtle" spacing="compact" isDisabled={busy} onClick={onUndo}>
-              Undo
+            <Button appearance="subtle" spacing="compact" iconBefore="undo" isDisabled={busy} onClick={onUndo}>
+              {s.undo}
             </Button>
           )}
         </Inline>
-        <Text>
-          <Text as="strong">You said:</Text> “{r.heard}”
+        <Text size="small" color="color.text.subtle">
+          <Text as="strong">{s.youSaid}:</Text> “{r.heard}”
         </Text>
-        <Stack space="space.025">
+        <Stack space="space.050">
           {r.lines.map((l, i) => (
-            <Text key={i} color={l.ok ? 'color.text' : 'color.text.danger'}>
-              {l.ok ? '✓' : '✗'} {l.text}
-            </Text>
+            <Inline key={i} space="space.075" alignBlock="center">
+              <Lozenge appearance={r.undone ? 'default' : l.ok ? 'success' : 'removed'}>{l.ok ? '✓' : '✗'}</Lozenge>
+              <Text color={l.ok ? 'color.text' : 'color.text.danger'}>{l.text}</Text>
+            </Inline>
           ))}
         </Stack>
       </Stack>
@@ -83,21 +97,44 @@ function Receipt({ r, onUndo, busy }: { r: ReceiptView; onUndo: () => void; busy
   );
 }
 
-function Risk({ r, rank, onPropose, busy }: { r: RiskJson; rank: number; onPropose: (rank: number) => void; busy: boolean }) {
+function Risk({
+  r,
+  rank,
+  onPropose,
+  busy,
+  s,
+  lang,
+}: {
+  r: RiskJson;
+  rank: number;
+  onPropose: (rank: number) => void;
+  busy: boolean;
+  s: typeof KIT.en;
+  lang: KitLang;
+}) {
+  const fix = r.proposed_fix.say_by_lang?.[lang] ?? r.proposed_fix.say;
   return (
-    <Box xcss={card}>
-      <Stack space="space.075">
-        <Inline space="space.100" alignBlock="center">
-          <Lozenge appearance={r.label === 'confirmed' ? 'removed' : 'inprogress'}>{r.label}</Lozenge>
+    <Box xcss={[card, accentRisk]}>
+      <Stack space="space.100">
+        <Inline space="space.100" alignBlock="center" shouldWrap>
+          <Lozenge appearance={r.label === 'confirmed' ? 'removed' : 'moved'} isBold>
+            {r.label === 'confirmed' ? s.confirmed : s.estimate}
+          </Lozenge>
           <Text as="strong">{r.key}</Text>
           <Text>{r.summary}</Text>
         </Inline>
-        <Text size="small">Why: {r.signals.map((s) => s.rule).join('; ')}</Text>
-        <Text size="small">Sources: {r.sources.join(', ')}</Text>
-        <Inline space="space.100" alignBlock="center">
-          <Text>Proposed: {r.proposed_fix.say}</Text>
-          <Button spacing="compact" isDisabled={busy} onClick={() => onPropose(rank)}>
-            Review fix
+        <Text size="small" color="color.text.subtle">
+          <Text as="strong">{s.why}:</Text> {r.signals.map((x) => x.rule).join(' · ')}
+        </Text>
+        <Text size="small" color="color.text.subtlest">
+          {s.sources}: {r.sources.join(', ')}
+        </Text>
+        <Inline space="space.100" alignBlock="center" spread="space-between" shouldWrap>
+          <Text>
+            <Text as="strong">{s.proposed}:</Text> {fix}
+          </Text>
+          <Button appearance="primary" spacing="compact" isDisabled={busy} onClick={() => onPropose(rank)}>
+            {s.review}
           </Button>
         </Inline>
       </Stack>
@@ -106,27 +143,33 @@ function Risk({ r, rank, onPropose, busy }: { r: RiskJson; rank: number; onPropo
 }
 
 function App() {
+  const ctx = useProductContext();
+  const lang = langFromLocale(ctx?.locale);
+  const s = KIT[lang];
   const [receipts, setReceipts] = useState<ReceiptView[] | null>(null);
   const [risks, setRisks] = useState<RiskJson[] | null>(null);
-  const [pending, setPending] = useState<{ readback: string; pendingId: string } | null>(null);
+  const [pending, setPending] = useState<Pending | null>(null);
   const [msg, setMsg] = useState<{ kind: 'information' | 'error' | 'success'; text: string }>();
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   const load = async () => {
-    const [r, k] = await Promise.all([call<ReceiptView[]>('getReceipts'), call<RiskJson[]>('getRisks')]);
+    const [r, k] = await Promise.all([call<ReceiptView[]>('getReceipts', { lang }), call<RiskJson[]>('getRisks')]);
     setReceipts(r);
     setRisks(k);
+    setFailed(false);
   };
   useEffect(() => {
-    load().catch((e) => setMsg({ kind: 'error', text: e instanceof Error ? e.message : String(e) }));
-  }, []);
+    if (!ctx) return;
+    load().catch(() => setFailed(true));
+  }, [ctx?.locale]);
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
     try {
       await fn();
     } catch (e) {
-      setMsg({ kind: 'error', text: e instanceof Error ? e.message : String(e) });
+      setMsg({ kind: 'error', text: e instanceof Error ? e.message : s.loadFailed });
     } finally {
       setBusy(false);
     }
@@ -135,31 +178,36 @@ function App() {
   const undo = (id: string) =>
     run(async () => {
       const out = await call<{ ok: boolean; failed: number }>('undo', { receiptId: id });
-      setMsg(
-        out.ok
-          ? { kind: 'success', text: 'Undone. Comments, notifications and created issues stay for the audit trail.' }
-          : { kind: 'error', text: `Undo partly failed (${out.failed}). Check the issues in Jira.` },
-      );
+      setMsg(out.ok ? { kind: 'success', text: s.undoOk } : { kind: 'error', text: s.undoPartial(out.failed) });
       await load();
     });
 
   const propose = (rank: number) =>
     run(async () => {
-      const p = await call<{ readback: string; pendingId?: string }>('proposeRiskFix', { rank });
-      if (p.pendingId) setPending({ readback: p.readback, pendingId: p.pendingId });
+      const p = await call<{ readback: string; pendingId?: string; changes?: string[] }>('proposeRiskFix', { rank, lang });
+      if (p.pendingId) setPending({ readback: p.readback, pendingId: p.pendingId, changes: p.changes ?? [] });
       else setMsg({ kind: 'information', text: p.readback });
     });
 
   const decide = (confirm: boolean) =>
     run(async () => {
       if (!pending) return;
-      const out = await call<{ speech: string }>('resolvePending', { pendingId: pending.pendingId, confirm });
+      const out = await call<{ speech: string }>('resolvePending', { pendingId: pending.pendingId, confirm, lang });
       setPending(null);
       setMsg({ kind: confirm ? 'success' : 'information', text: out.speech });
       await load();
     });
 
-  if (!receipts || !risks) return <Spinner label="Loading your drive receipt" />;
+  if (failed && !receipts)
+    return (
+      <SectionMessage appearance="error">
+        <Stack space="space.100">
+          <Text>{s.loadFailed}</Text>
+          <Button onClick={() => run(load)}>{s.refresh}</Button>
+        </Stack>
+      </SectionMessage>
+    );
+  if (!receipts || !risks) return <Spinner label={s.loading} />;
 
   return (
     <Stack space="space.200">
@@ -170,39 +218,56 @@ function App() {
       )}
 
       {pending && (
-        <SectionMessage appearance="warning" title="Confirm this change">
+        <SectionMessage appearance="warning" title={s.gateTitle}>
           <Stack space="space.100">
             <Text>{pending.readback}</Text>
-            <Text size="small">Nothing changes until you confirm. This expires in 2 minutes.</Text>
-            <ButtonGroup>
+            {pending.changes.map((c, i) => (
+              <Text key={i}>→ {c}</Text>
+            ))}
+            <Text size="small">{s.gateNote}</Text>
+            <Inline space="space.100">
               <Button appearance="primary" isDisabled={busy} onClick={() => decide(true)}>
-                Confirm
+                {s.confirm}
               </Button>
               <Button appearance="subtle" isDisabled={busy} onClick={() => decide(false)}>
-                Cancel
+                {s.cancel}
               </Button>
-            </ButtonGroup>
+            </Inline>
           </Stack>
         </SectionMessage>
       )}
 
       <Inline spread="space-between" alignBlock="center">
-        <Heading as="h3">On the way in</Heading>
-        <Button appearance="subtle" spacing="compact" isDisabled={busy} onClick={() => run(load)}>
-          Refresh
+        <Stack space="space.025">
+          <Heading size="small">{s.receiptTitle}</Heading>
+          <Text size="small" color="color.text.subtlest">
+            {s.receiptSub}
+          </Text>
+        </Stack>
+        <Button appearance="subtle" spacing="compact" iconBefore="refresh" isDisabled={busy} onClick={() => run(load)}>
+          {s.refresh}
         </Button>
       </Inline>
       {receipts.length === 0 ? (
-        <Text>No voice updates yet. Try in Rovo: “I finished MP-12”, then say yes.</Text>
+        <SectionMessage appearance="discovery">
+          <Text>{s.receiptEmpty}</Text>
+        </SectionMessage>
       ) : (
-        receipts.slice(0, 5).map((r) => <Receipt key={r.id} r={r} busy={busy} onUndo={() => undo(r.id)} />)
+        receipts.slice(0, 5).map((r) => <Receipt key={r.id} r={r} s={s} lang={lang} busy={busy} onUndo={() => undo(r.id)} />)
       )}
 
-      <Heading as="h3">Risk Radar</Heading>
+      <Stack space="space.025">
+        <Heading size="small">{s.radarTitle}</Heading>
+        <Text size="small" color="color.text.subtlest">
+          {s.radarSub}
+        </Text>
+      </Stack>
       {risks.length === 0 ? (
-        <Text>No risks this week.</Text>
+        <SectionMessage appearance="success">
+          <Text>{s.radarEmpty}</Text>
+        </SectionMessage>
       ) : (
-        risks.map((r, i) => <Risk key={r.key} r={r} rank={i + 1} busy={busy || !!pending} onPropose={propose} />)
+        risks.map((r, i) => <Risk key={r.key} r={r} s={s} lang={lang} rank={i + 1} busy={busy || !!pending} onPropose={propose} />)
       )}
     </Stack>
   );

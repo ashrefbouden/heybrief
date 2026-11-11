@@ -9,6 +9,8 @@ export interface Turn {
   lang: Lang;
   /** Present when a write is waiting for a yes. */
   pendingId?: string;
+  /** One line per write waiting for the yes. */
+  changes?: string[];
   expectReply: boolean;
   failed?: 'timeout' | 'error';
   /** Set when this turn is an urgent heads-up the page should show as a banner. */
@@ -36,7 +38,7 @@ export interface Backend {
   ask(text: string, opts: { lang?: Lang; minutes?: number }): Promise<Turn>;
   decide(pendingId: string, yes: boolean, lang?: Lang): Promise<Turn>;
   board(): Promise<BoardIssue[]>;
-  receipts(): Promise<ReceiptView[]>;
+  receipts(lang?: Lang): Promise<ReceiptView[]>;
   undo(receiptId: string): Promise<{ ok: boolean }>;
   /** Urgent heads-up poll. Resolves with an empty speech when there is nothing new. Optional so older backends compile. */
   alerts?(lang: Lang): Promise<Turn>;

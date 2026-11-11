@@ -13,21 +13,11 @@ const backend: Backend = {
   ask: (text, { lang, minutes }) => call<Turn>('ask', { text, lang, minutes }),
   decide: (pendingId, yes, lang) => call<Turn>('decide', { pendingId, yes, lang }),
   board: () => call<BoardIssue[]>('board'),
-  receipts: () => call<ReceiptView[]>('getReceipts'),
+  receipts: (lang) => call<ReceiptView[]>('getReceipts', { lang }),
   undo: (receiptId) => call<{ ok: boolean }>('undo', { receiptId }),
   alerts: (lang) => call<Turn>('alerts', { lang }),
 };
 
 void view.theme?.enable?.().catch(() => undefined);
 // The browser's speech recognition may be refused inside the Forge iframe; the console then hides the mic and keeps typing.
-mountConsole(document.getElementById('app')!, backend, webSpeechListener(), {
-  subtitle: 'Talk to Jira, and Jira changes.',
-  chips: [
-    { label: 'Brief me', text: 'Brief me' },
-    { label: "What's at risk?", text: "What's at risk this week?" },
-    { label: 'Why?', text: 'Why?' },
-    { label: 'Anything urgent?', text: 'Anything urgent?' },
-    { label: 'Mon résumé', text: 'Mon résumé du jour', lang: 'fr' },
-    { label: 'ما هي المخاطر؟', text: 'ما هي المخاطر هذا الأسبوع؟', lang: 'ar' },
-  ],
-});
+mountConsole(document.getElementById('app')!, backend, webSpeechListener());

@@ -24,13 +24,15 @@ const langOf = (p: Payload) =>
 
 const str = (v: unknown, max = 2000) => (typeof v === 'string' ? v.slice(0, max) : undefined);
 
-function reply(a: { speech: string; pendingId?: string; data?: unknown; lang?: string }) {
+function reply(a: { speech: string; pendingId?: string; changes?: string[]; data?: unknown; lang?: string }) {
   return JSON.stringify({
     speech: a.speech,
     lang: a.lang,
     // The agent prompt tells Rovo to show this and wait for the user's own "yes".
     confirmation_id: a.pendingId,
     needs_confirmation: Boolean(a.pendingId),
+    // Show these to the user before asking for their yes.
+    proposed_changes: a.pendingId ? a.changes : undefined,
     data: a.data,
   });
 }

@@ -1,15 +1,14 @@
-// The HeyBrief voice console: talk (or type), hear the answer, confirm writes, watch the board change.
+// The HeyBrief voice console: talk (or type), hear the answer, approve writes, watch Jira change.
 // Plain DOM so the same file runs in the browser prototype and in a Forge Custom UI page.
-// Every string from the backend goes in with textContent: nothing is parsed as HTML.
+// Every string from the backend goes in with textContent: nothing from the backend is parsed as HTML.
 
+import { S, type Strings } from './i18n';
 import type { Backend, BoardIssue, Lang, Listener, ReceiptView, Turn } from './types';
 import { LANG_NAME, installHint, pickVoice } from './voices';
 
 export interface ConsoleOptions {
-  /** Suggested phrases shown as chips. */
-  chips: Array<{ label: string; text: string; lang?: Lang }>;
-  /** Short line under the title. */
-  subtitle: string;
+  /** Story chips shown after the built-in ones (the prototype's talk-back examples). `lang` switches language first. */
+  chips?: Array<{ label: string; text: string; lang?: Lang }>;
 }
 
 const CONFIRM_MS = 120_000;
@@ -20,40 +19,15 @@ const ALERT_FIRST_MS = 4_000;
 let alertTimer: ReturnType<typeof setInterval> | undefined;
 let alertKick: ReturnType<typeof setTimeout> | undefined;
 const SILENCE_MS = 1400;
-const UI: Record<Lang, { type: string; talk: string; yes: string; no: string; gate: string; hello: string }> = {
-  en: {
-    type: 'Tap the mic and talk, or type here',
-    talk: 'Type what you would say',
-    yes: 'Yes, do it',
-    no: 'Cancel',
-    gate: 'Nothing changes until you say yes.',
-    hello: 'Hi. Ask for your brief, ask what is at risk, or just tell me what you did. I only change Jira after you say yes.',
-  },
-  fr: {
-    type: 'Touchez le micro et parlez, ou écrivez ici',
-    talk: 'Écrivez ce que vous diriez',
-    yes: 'Oui, vas-y',
-    no: 'Annuler',
-    gate: 'Rien ne change avant votre oui.',
-    hello:
-      "Bonjour. Demandez votre résumé, les risques, ou dites-moi ce que vous avez fait. Je ne change Jira qu'après votre oui.",
-  },
-  ar: {
-    type: 'اضغط على الميكروفون وتكلم، أو اكتب هنا',
-    talk: 'اكتب ما ستقوله',
-    yes: 'نعم، نفّذ',
-    no: 'إلغاء',
-    gate: 'لا يتغير شيء قبل أن تقول نعم.',
-    hello: 'مرحبا. اطلب ملخصك، أو اسأل عن المخاطر، أو أخبرني بما أنجزت. لا أغيّر Jira إلا بعد أن تقول نعم.',
-  },
-};
+const ISSUE_KEY = /\b([A-Z][A-Z0-9]{1,9}-\d+)\b/g;
+
+type Who = 'me' | 'hb' | 'sys';
+type State = 'ready' | 'listening' | 'thinking' | 'speaking';
 
 function defaultLang(): Lang {
   const l = (navigator.language || 'en').slice(0, 2).toLowerCase();
   return l === 'fr' || l === 'ar' ? l : 'en';
 }
-
-type Who = 'me' | 'hb' | 'sys';
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -62,9 +36,25 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: 
   return e;
 }
 
-export function mountConsole(root: HTMLElement, backend: Backend, listener: Listener | null, opts: ConsoleOptions) {
+/** Text with issue keys shown as key badges. Built from text nodes only. */
+function withKeys(text: string): DocumentFragment {
+  const f = document.createDocumentFragment();
+  let last = 0;
+  for (const m of text.matchAll(ISSUE_KEY)) {
+    if (m.index! > last) f.append(document.createTextNode(text.slice(last, m.index)));
+    const k = el('span', 'hb-key', m[1]);
+    k.dir = 'ltr';
+    f.append(k);
+    last = m.index! + m[0].length;
+  }
+  if (last < text.length) f.append(document.createTextNode(text.slice(last)));
+  return f;
+}
+
+export function mountConsole(root: HTMLElement, backend: Backend, listener: Listener | null, opts: ConsoleOptions = {}) {
   // ---------- state ----------
   let lang: Lang = defaultLang();
+  let t: Strings = S[lang];
   const warnedNoVoice = new Set<Lang>();
   let minutes: number | undefined;
   let speakOn = true;
@@ -72,169 +62,295 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
   let listening = false;
   let pending: { id: string; deadline: number; lang: Lang } | undefined;
   let lastBoard = new Map<string, string>();
+  let lastIssues: BoardIssue[] | null = null;
+  let boardFailed = false;
+  let lastReceipts: ReceiptView[] = [];
   let silenceTimer: ReturnType<typeof setTimeout> | undefined;
   let countdown: ReturnType<typeof setInterval> | undefined;
   let audio: AudioContext | undefined;
   let alertPendingId: string | undefined;
+  let lastAlert: Turn | undefined;
 
   // ---------- layout ----------
   root.replaceChildren();
   const app = el('div', 'hb');
+
+  // Header
   const head = el('header', 'hb-head');
   const brand = el('div', 'hb-brand');
-  brand.append(el('h1', '', 'HeyBrief'), el('p', 'hb-sub', opts.subtitle));
-  const badge = el('span', 'hb-badge', backend.label);
-  const controls = el('div', 'hb-controls');
+  const logo = el('span', 'hb-logo');
+  logo.append(icon('wave'));
+  const brandText = el('div');
+  const title = el('h1', '', 'HeyBrief');
+  const tagline = el('p', 'hb-sub');
+  brandText.append(title, tagline);
+  brand.append(logo, brandText);
+  const badge = el('span', 'hb-badge');
+  badge.append(el('span', 'hb-badge-dot'), document.createTextNode(backend.label));
 
-  const langSel = el('select', 'hb-select');
-  langSel.setAttribute('aria-label', 'Language');
-  for (const [v, t] of [
-    ['en', 'English'],
-    ['fr', 'Français'],
-    ['ar', 'العربية'],
-  ]) {
-    const o = el('option', '', t);
-    o.value = v;
-    langSel.append(o);
+  const controls = el('div', 'hb-controls');
+  const langSeg = el('div', 'hb-seg');
+  langSeg.setAttribute('role', 'radiogroup');
+  const langBtns = new Map<Lang, HTMLButtonElement>();
+  for (const [v, label] of [
+    ['en', 'EN'],
+    ['fr', 'FR'],
+    ['ar', 'عربي'],
+  ] as const) {
+    const b = el('button', 'hb-seg-btn', label);
+    b.type = 'button';
+    b.setAttribute('role', 'radio');
+    b.lang = v;
+    b.title = LANG_NAME[v];
+    b.onclick = () => setLang(v);
+    langBtns.set(v, b);
+    langSeg.append(b);
   }
-  langSel.value = lang;
-  langSel.onchange = () => setLang(langSel.value as Lang);
 
   const minSel = el('select', 'hb-select');
-  minSel.setAttribute('aria-label', 'Time you have');
-  for (const [v, t] of [
-    ['', 'Standard brief'],
-    ['4', '4 min drive'],
-    ['12', '12 min drive'],
-    ['25', '25 min drive'],
-  ]) {
-    const o = el('option', '', t);
-    o.value = v;
-    minSel.append(o);
-  }
   minSel.onchange = () => (minutes = minSel.value ? Number(minSel.value) : undefined);
 
-  const speakBtn = el('button', 'hb-toggle', 'Voice on');
+  const speakBtn = el('button', 'hb-icon-btn');
   speakBtn.type = 'button';
-  speakBtn.setAttribute('aria-pressed', 'true');
   speakBtn.onclick = () => {
     speakOn = !speakOn;
-    speakBtn.textContent = speakOn ? 'Voice on' : 'Voice off';
-    speakBtn.setAttribute('aria-pressed', String(speakOn));
-    if (!speakOn) window.speechSynthesis?.cancel();
+    if (!speakOn) {
+      window.speechSynthesis?.cancel();
+      if (state === 'speaking') setState('ready');
+    }
+    renderStatic();
   };
-  controls.append(langSel, minSel, speakBtn);
+  controls.append(langSeg, minSel, speakBtn);
+
+  const demo = el('div', 'hb-demo');
+  let resetBtn: HTMLButtonElement | undefined;
+  let simBtn: HTMLButtonElement | undefined;
   if (backend.reset) {
-    const resetBtn = el('button', 'hb-toggle', 'Reset demo');
+    resetBtn = el('button', 'hb-ghost');
     resetBtn.type = 'button';
     resetBtn.onclick = async () => {
       await backend.reset!();
       log.replaceChildren();
       clearPending();
       lastBoard = new Map();
-      say('sys', 'Demo reset. Same story, fresh board.');
+      say('sys', t.demoResetDone);
       await refresh();
     };
-    controls.append(resetBtn);
+    demo.append(resetBtn);
   }
   if (backend.simulateIncident) {
-    const simBtn = el('button', 'hb-toggle', 'Simulate P1 outage');
+    simBtn = el('button', 'hb-ghost is-danger');
     simBtn.type = 'button';
-    simBtn.title = 'Adds a Highest-priority incident to the simulated Jira. HeyBrief interrupts within seconds.';
     simBtn.onclick = async () => {
       await backend.simulateIncident!();
-      say('sys', 'Someone just opened a Highest-priority incident in Jira.');
+      say('sys', t.demoIncidentDone);
       await refresh();
       if (alertKick) clearTimeout(alertKick);
       alertKick = setTimeout(() => void pollAlerts(), 1500);
     };
-    controls.append(simBtn);
+    demo.append(simBtn);
   }
-  const voiceStatus = el('p', 'hb-voice');
-  voiceStatus.setAttribute('aria-live', 'polite');
-  head.append(brand, badge, controls, voiceStatus);
+  head.append(brand, badge, controls);
+  if (demo.childElementCount) head.append(demo);
 
+  // Conversation column
   const main = el('main', 'hb-main');
-  const convo = el('section', 'hb-convo');
-  convo.setAttribute('aria-label', 'Conversation');
+  const convo = el('section', 'hb-convo hb-card');
+
+  const stage = el('div', 'hb-stage');
+  const stateDot = el('span', 'hb-state-dot');
+  const stateText = el('span', 'hb-state-text');
+  const voiceStatus = el('span', 'hb-voice');
+  voiceStatus.setAttribute('aria-live', 'polite');
+  const stateWrap = el('div', 'hb-state');
+  stateWrap.append(stateDot, stateText);
+  stage.append(stateWrap, voiceStatus);
+
   const log = el('div', 'hb-log');
   log.setAttribute('role', 'log');
   log.setAttribute('aria-live', 'polite');
 
-  // Urgent heads-up banner: the real alert. Sound and speech are best effort (browsers may block them).
+  // Urgent heads-up banner. Sound and speech are best effort (browsers may block them).
   const alertBar = el('div', 'hb-alert');
   alertBar.setAttribute('role', 'alert');
   alertBar.hidden = true;
+  const alertIcon = el('span', 'hb-alert-icon');
+  alertIcon.append(icon('bell'));
+  const alertBody = el('div', 'hb-alert-body');
+  const alertTitle = el('div', 'hb-alert-title');
+  const alertText = el('p', 'hb-alert-text');
+  alertBody.append(alertTitle, alertText);
+  alertBar.append(alertIcon, alertBody);
 
-  const confirmCard = el('div', 'hb-confirm');
-  confirmCard.hidden = true;
-  const confirmText = el('p', 'hb-confirm-text', 'Nothing changes until you say yes.');
-  const confirmTimer = el('span', 'hb-confirm-timer');
-  const yesBtn = el('button', 'hb-btn hb-btn-primary', 'Yes, do it');
-  const noBtn = el('button', 'hb-btn', 'Cancel');
+  // The gate: what will change, and the only buttons that write.
+  const gate = el('div', 'hb-gate');
+  gate.hidden = true;
+  gate.setAttribute('role', 'group');
+  const gateHead = el('div', 'hb-gate-head');
+  const gateIcon = el('span', 'hb-gate-icon');
+  gateIcon.append(icon('shield'));
+  const gateTitle = el('strong', 'hb-gate-title');
+  const gateTimer = el('span', 'hb-gate-timer');
+  gateHead.append(gateIcon, gateTitle, gateTimer);
+  const gateBar = el('div', 'hb-gate-bar');
+  const gateFill = el('div', 'hb-gate-fill');
+  gateBar.append(gateFill);
+  const gateList = el('ul', 'hb-gate-list');
+  const gateNote = el('p', 'hb-gate-note');
+  const yesBtn = el('button', 'hb-btn hb-btn-primary');
+  const noBtn = el('button', 'hb-btn');
   yesBtn.type = noBtn.type = 'button';
-  const confirmRow = el('div', 'hb-confirm-row');
-  confirmRow.append(yesBtn, noBtn, confirmTimer);
-  confirmCard.append(confirmText, confirmRow);
+  const gateRow = el('div', 'hb-gate-row');
+  gateRow.append(yesBtn, noBtn);
+  gate.append(gateHead, gateBar, gateList, gateRow, gateNote);
   yesBtn.onclick = () => decide(true);
   noBtn.onclick = () => decide(false);
 
+  const dock = el('div', 'hb-dock');
   const chips = el('div', 'hb-chips');
-  for (const c of opts.chips) {
-    const b = el('button', 'hb-chip', c.label);
-    b.type = 'button';
-    b.title = c.text;
-    b.onclick = () => {
-      if (c.lang && c.lang !== lang) setLang(c.lang);
-      void send(c.text);
-    };
-    chips.append(b);
-  }
-
   const bar = el('form', 'hb-bar');
   const mic = el('button', 'hb-mic');
   mic.type = 'button';
-  mic.setAttribute('aria-label', 'Talk');
-  mic.append(micIcon());
+  mic.append(icon('mic'));
   const input = el('input', 'hb-input');
   input.type = 'text';
-  input.placeholder = listener ? 'Tap the mic and talk, or type here' : 'Type what you would say';
-  input.setAttribute('aria-label', 'What you say');
   input.dir = 'auto';
   input.maxLength = 500;
-  const sendBtn = el('button', 'hb-btn hb-btn-primary', 'Send');
+  const sendBtn = el('button', 'hb-send');
   sendBtn.type = 'submit';
+  sendBtn.append(icon('send'));
   bar.append(mic, input, sendBtn);
   bar.onsubmit = (e) => {
     e.preventDefault();
-    send(input.value);
+    void send(input.value);
   };
   if (!listener) mic.hidden = true;
   const hint = el('p', 'hb-hint');
-  hint.textContent = listener
-    ? 'Tap the mic, talk, then pause. HeyBrief sends when you stop talking.'
-    : 'Voice input is not available in this browser. Typing works the same way.';
+  dock.append(chips, bar, hint);
 
-  convo.append(alertBar, log, confirmCard, chips, bar, hint);
+  convo.append(stage, alertBar, log, gate, dock);
 
+  // Side column: Team pulse and Receipt
   const side = el('aside', 'hb-side');
-  const boardHead = el('h2', '', 'Team pulse');
+  const pulseCard = el('section', 'hb-card hb-pulse');
+  const pulseHead = el('div', 'hb-card-head');
+  const pulseTitle = el('h2');
+  const pulseNote = el('span', 'hb-card-note');
+  pulseHead.append(pulseTitle, pulseNote);
+  const stats = el('div', 'hb-stats');
   const board = el('div', 'hb-board');
-  const recHead = el('h2', '', 'Receipt');
+  pulseCard.append(pulseHead, stats, board);
+
+  const recCard = el('section', 'hb-card hb-receipt');
+  const recHead = el('div', 'hb-card-head');
+  const recTitle = el('h2');
+  const recNote = el('span', 'hb-card-note');
+  recHead.append(recTitle, recNote);
   const receipts = el('div', 'hb-receipts');
-  side.append(boardHead, board, recHead, receipts);
+  recCard.append(recHead, receipts);
+  side.append(pulseCard, recCard);
 
   main.append(convo, side);
   app.append(head, main);
   root.append(app);
 
+  // ---------- language ----------
+  function setLang(l: Lang) {
+    lang = l;
+    t = S[l];
+    app.dir = l === 'ar' ? 'rtl' : 'ltr';
+    app.lang = l;
+    document.documentElement.lang = l;
+    renderStatic();
+    if (lastIssues) renderBoard(lastIssues, false);
+    void backend
+      .receipts(lang)
+      .then(renderReceipts)
+      .catch(() => renderReceipts(lastReceipts));
+  }
+
+  /** Every label that depends on the language. */
+  function renderStatic() {
+    tagline.textContent = t.tagline;
+    for (const [v, b] of langBtns) b.setAttribute('aria-checked', String(v === lang));
+    langSeg.setAttribute('aria-label', t.langLabel);
+    minSel.setAttribute('aria-label', t.timeLabel);
+    const cur = minSel.value;
+    minSel.replaceChildren();
+    for (const v of ['', '4', '12', '25']) {
+      const o = el('option', '', v ? t.timeDrive(Number(v)) : t.timeStandard);
+      o.value = v;
+      minSel.append(o);
+    }
+    minSel.value = cur;
+    speakBtn.replaceChildren(icon(speakOn ? 'volume' : 'mute'));
+    speakBtn.setAttribute('aria-pressed', String(speakOn));
+    speakBtn.setAttribute('aria-label', speakOn ? t.voiceOn : t.voiceOff);
+    speakBtn.title = speakOn ? t.voiceOn : t.voiceOff;
+    if (resetBtn) resetBtn.textContent = t.demoReset;
+    if (simBtn) simBtn.textContent = t.demoIncident;
+    convo.setAttribute('aria-label', t.conversation);
+    input.placeholder = listener ? t.placeholderMic : t.placeholderType;
+    input.setAttribute('aria-label', t.conversation);
+    mic.setAttribute('aria-label', listening ? t.stopSend : t.talk);
+    sendBtn.setAttribute('aria-label', t.send);
+    sendBtn.title = t.send;
+    hint.textContent = listener ? t.hintMic : t.hintNoMic;
+    gateTitle.textContent = t.gateTitle;
+    gateNote.textContent = t.gateNote;
+    yesBtn.textContent = t.yes;
+    noBtn.textContent = t.no;
+    alertTitle.textContent = lastAlert?.alert?.severity === 'critical' ? `${t.headsUp} · ${t.critical}` : t.headsUp;
+    pulseTitle.textContent = t.pulse;
+    pulseNote.textContent = t.pulseNote;
+    recTitle.textContent = t.receipt;
+    recNote.textContent = t.receiptNote;
+    renderChips();
+    renderState();
+    renderVoiceStatus();
+  }
+
+  function renderChips() {
+    chips.replaceChildren();
+    const all = [...t.chips.map((c) => ({ ...c, lang: undefined as Lang | undefined })), ...(opts.chips ?? [])];
+    for (const c of all) {
+      const b = el('button', 'hb-chip' + (c.lang ? ' is-story' : ''), c.label);
+      b.type = 'button';
+      b.title = c.text;
+      if (c.lang) b.lang = c.lang;
+      b.onclick = () => {
+        if (c.lang && c.lang !== lang) setLang(c.lang);
+        void send(c.text);
+      };
+      chips.append(b);
+    }
+  }
+
+  // ---------- state line ----------
+  let state: State = 'ready';
+  function setState(s: State) {
+    state = s;
+    renderState();
+  }
+  function renderState() {
+    app.dataset.state = state;
+    stateText.textContent = { ready: t.ready, listening: t.listening, thinking: t.thinking, speaking: t.speaking }[state];
+  }
+
   // ---------- conversation ----------
   function say(who: Who, text: string, l?: Lang) {
-    const b = el('div', `hb-msg hb-${who}`);
+    const row = el('div', `hb-msg hb-${who}`);
+    if (who === 'hb') {
+      const av = el('span', 'hb-avatar');
+      av.append(icon('wave'));
+      row.append(av);
+    }
+    const b = el('div', 'hb-bubble');
     b.dir = l === 'ar' ? 'rtl' : 'auto';
     if (l) b.lang = l;
-    b.textContent = text;
-    log.append(b);
+    b.append(who === 'sys' ? document.createTextNode(text) : withKeys(text));
+    row.append(b);
+    log.append(row);
     log.scrollTop = log.scrollHeight;
   }
 
@@ -248,10 +364,11 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
     const v = voiceFor(lang);
     voiceStatus.classList.toggle('is-warn', !v);
     voiceStatus.textContent = !window.speechSynthesis
-      ? 'This browser cannot speak answers. They are shown as text.'
+      ? t.noSynth
       : v
-        ? `Speaking ${LANG_NAME[lang]} with: ${v.name}`
-        : `No ${LANG_NAME[lang]} voice on this device, so answers are shown as text. ${installHint(lang, navigator.userAgent)}`;
+        ? t.speakingWith(LANG_NAME[lang], v.name.replace(/^Microsoft\s+/, '').replace(/\s+-\s+.*$/, ''))
+        : `${t.noVoice(LANG_NAME[lang])} ${installHint(lang, navigator.userAgent)}`;
+    voiceStatus.title = v ? v.name : '';
   }
 
   function speak(text: string, l: Lang) {
@@ -263,10 +380,7 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
     if (!voice) {
       if (!warnedNoVoice.has(l)) {
         warnedNoVoice.add(l);
-        say(
-          'sys',
-          `No ${LANG_NAME[l]} voice is installed here, so this answer is text only. ${installHint(l, navigator.userAgent)}`,
-        );
+        say('sys', `${S[l].noVoice(LANG_NAME[l])} ${installHint(l, navigator.userAgent)}`);
       }
       return;
     }
@@ -274,25 +388,19 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
     u.voice = voice;
     u.lang = voice.lang;
     u.rate = l === 'en' ? 1.02 : 0.95;
+    u.onstart = () => setState('speaking');
+    u.onend = u.onerror = () => {
+      if (state === 'speaking') setState('ready');
+    };
     synth.speak(u);
-  }
-
-  function setLang(l: Lang) {
-    lang = l;
-    langSel.value = l;
-    const t = UI[l];
-    input.placeholder = listener ? t.type : t.talk;
-    yesBtn.textContent = t.yes;
-    noBtn.textContent = t.no;
-    confirmText.textContent = t.gate;
-    confirmCard.dir = l === 'ar' ? 'rtl' : 'ltr';
-    renderVoiceStatus();
   }
 
   function setBusy(b: boolean) {
     busy = b;
     app.classList.toggle('is-busy', b);
     sendBtn.disabled = yesBtn.disabled = noBtn.disabled = b;
+    if (b) setState('thinking');
+    else if (state === 'thinking') setState('ready');
   }
 
   async function send(raw: string) {
@@ -304,7 +412,7 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
     try {
       show(await backend.ask(text, { lang, minutes }));
     } catch {
-      say('sys', 'Something went wrong. Nothing was changed.');
+      say('sys', t.failed);
     } finally {
       setBusy(false);
       await refresh();
@@ -314,63 +422,77 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
   async function decide(yes: boolean) {
     if (!pending || busy) return;
     const p = pending;
-    say('me', yes ? { en: 'Yes', fr: 'Oui', ar: 'نعم' }[lang] : UI[lang].no, lang);
+    say('me', yes ? t.yesWord : t.no, lang);
     setBusy(true);
     try {
       show(await backend.decide(p.id, yes, p.lang));
     } catch {
-      say('sys', 'Something went wrong. Nothing was changed.');
+      say('sys', t.failed);
     } finally {
       setBusy(false);
       await refresh();
     }
   }
 
-  function show(t: Turn) {
+  function show(turn: Turn) {
     // The banner stays up while its own proposal is pending (a "why?" keeps it), and goes with anything else.
-    if (t.alert) {
-      showAlert(t);
-      alertPendingId = t.pendingId;
-    } else if (t.pendingId !== alertPendingId) alertBar.hidden = true;
-    say('hb', t.speech, t.lang);
-    speak(t.speech, t.lang);
-    if (t.pendingId) setPending(t.pendingId, t.lang);
+    if (turn.alert) {
+      showAlert(turn);
+      alertPendingId = turn.pendingId;
+    } else if (turn.pendingId !== alertPendingId) alertBar.hidden = true;
+    say(turn.failed ? 'sys' : 'hb', turn.speech, turn.lang);
+    speak(turn.speech, turn.lang);
+    if (turn.pendingId) setPending(turn.pendingId, turn.lang, turn.changes ?? []);
     else clearPending();
   }
 
-  function setPending(id: string, l: Lang) {
+  function setPending(id: string, l: Lang, changes: string[]) {
     pending = { id, deadline: Date.now() + CONFIRM_MS, lang: l };
-    confirmCard.hidden = false;
+    gateList.replaceChildren();
+    for (const c of changes) {
+      const li = el('li');
+      li.dir = 'auto';
+      li.append(icon(changeIcon(c)), withKeys(c));
+      gateList.append(li);
+    }
+    gateList.hidden = !changes.length;
+    gate.hidden = false;
     tick();
     if (countdown) clearInterval(countdown);
     countdown = setInterval(tick, 1000);
+    gate.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
   }
 
   function clearPending() {
     pending = undefined;
     alertBar.hidden = true;
-    confirmCard.hidden = true;
+    gate.hidden = true;
     if (countdown) clearInterval(countdown);
     countdown = undefined;
   }
 
   function tick() {
     if (!pending) return;
-    const left = Math.max(0, Math.round((pending.deadline - Date.now()) / 1000));
-    confirmTimer.textContent = left ? `Expires in ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` : 'Expired';
+    const ms = Math.max(0, pending.deadline - Date.now());
+    const left = Math.round(ms / 1000);
+    gateFill.style.width = `${(ms / CONFIRM_MS) * 100}%`;
+    gate.classList.toggle('is-late', left <= 20);
+    gateTimer.textContent = left ? t.expiresIn(`${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`) : t.expired;
     if (!left) {
       clearPending();
-      say('sys', 'The proposal expired. Nothing was changed.');
+      say('sys', t.expiredMsg);
     }
   }
 
   // ---------- urgent heads-up ----------
-  function showAlert(t: Turn) {
-    alertBar.textContent = t.speech;
-    alertBar.dir = t.lang === 'ar' ? 'rtl' : 'auto';
-    alertBar.classList.toggle('is-critical', t.alert?.severity === 'critical');
+  function showAlert(turn: Turn) {
+    lastAlert = turn;
+    alertTitle.textContent = turn.alert?.severity === 'critical' ? `${t.headsUp} · ${t.critical}` : t.headsUp;
+    alertText.replaceChildren(withKeys(turn.speech));
+    alertBar.dir = turn.lang === 'ar' ? 'rtl' : 'auto';
+    alertBar.classList.toggle('is-critical', turn.alert?.severity === 'critical');
     alertBar.hidden = false;
-    chime(t.alert?.severity === 'critical' ? 2 : 1);
+    chime(turn.alert?.severity === 'critical' ? 2 : 1);
   }
 
   /** A short two-tone chime. Silently skipped when the browser has not allowed audio yet. */
@@ -418,9 +540,9 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
   async function pollAlerts() {
     if (!backend.alerts || busy || listening || pending) return;
     try {
-      const t = await backend.alerts(lang);
-      if (!t.speech || busy || listening || pending) return;
-      show(t);
+      const a = await backend.alerts(lang);
+      if (!a.speech || busy || listening || pending) return;
+      show(a);
       await refresh();
     } catch {
       /* a failed poll stays silent */
@@ -440,7 +562,8 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
     let settled = before;
     listening = true;
     mic.classList.add('is-on');
-    mic.setAttribute('aria-label', 'Stop and send');
+    mic.setAttribute('aria-label', t.stopSend);
+    setState('listening');
     // start() must run synchronously inside this click.
     const started = listener.start(lang, {
       partial(text) {
@@ -460,7 +583,7 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
           if (input.value.trim()) void send(input.value);
           return;
         }
-        say('sys', micProblem(reason));
+        say('sys', t.mic[(reason as keyof Strings['mic']) in t.mic ? (reason as keyof Strings['mic']) : 'other']);
         if (reason === 'unavailable' || reason === 'not_granted') mic.hidden = true;
       },
     });
@@ -485,13 +608,20 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
     listening = false;
     armSilence(false);
     mic.classList.remove('is-on');
-    mic.setAttribute('aria-label', 'Talk');
+    mic.setAttribute('aria-label', t.talk);
+    if (state === 'listening') setState('ready');
   }
 
-  // ---------- board + receipts ----------
+  // ---------- Team pulse + receipt ----------
   async function refresh() {
-    const [issues, recs] = await Promise.all([backend.board().catch(() => []), backend.receipts().catch(() => [])]);
-    renderBoard(issues);
+    const [issues, recs] = await Promise.all([
+      backend.board().then(
+        (x) => ((boardFailed = false), x),
+        () => ((boardFailed = true), lastIssues ?? []),
+      ),
+      backend.receipts(lang).catch(() => lastReceipts),
+    ]);
+    renderBoard(issues, true);
     renderReceipts(recs);
   }
 
@@ -499,29 +629,47 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
    * HeyBrief's own view of the project, not a copy of a Jira board: what is stuck and what it holds up,
    * what is late, your plate, and who carries the load. Changed rows flash after each answer.
    */
-  function renderBoard(issues: BoardIssue[]) {
+  function renderBoard(issues: BoardIssue[], diff: boolean) {
+    lastIssues = issues;
     const changed = new Set<string>();
-    const next = new Map<string, string>();
-    for (const i of issues) {
-      const sig = [i.status, i.assignee ?? '', i.flagged, i.blockedBy.join(','), i.blocks.join(',')].join('|');
-      next.set(i.key, sig);
-      if (lastBoard.size && lastBoard.get(i.key) !== sig) changed.add(i.key);
+    if (diff) {
+      const next = new Map<string, string>();
+      for (const i of issues) {
+        const sig = [i.status, i.assignee ?? '', i.flagged, i.blockedBy.join(','), i.blocks.join(',')].join('|');
+        next.set(i.key, sig);
+        if (lastBoard.size && lastBoard.get(i.key) !== sig) changed.add(i.key);
+      }
+      lastBoard = next;
     }
-    lastBoard = next;
 
     const today = new Date().toISOString().slice(0, 10);
     const open = issues.filter((i) => i.statusCategory !== 'done');
     const byKey = new Map(issues.map((i) => [i.key, i]));
-    const isStuck = (i: BoardIssue) => i.statusCategory !== 'done' && (i.status === 'Blocked' || i.flagged);
+    const isStuck = (i: BoardIssue) => i.statusCategory !== 'done' && (/block/i.test(i.status) || i.flagged);
     const stuck = open.filter(isStuck);
     const late = open.filter((i) => i.dueDate && i.dueDate < today && !isStuck(i));
     const mine = open.filter((i) => i.mine);
     const done = issues.filter((i) => i.statusCategory === 'done');
 
+    stats.replaceChildren(
+      stat(t.statBlocked, stuck.length, stuck.length ? 'warn' : 'ok'),
+      stat(t.statLate, late.length, late.length ? 'warn' : 'ok'),
+      stat(t.statMine, mine.length, ''),
+      stat(t.statDone, done.length, done.length ? 'good' : ''),
+    );
     board.replaceChildren();
 
-    // 1. Stuck chains: the blocked issue, then everything waiting on it.
-    const chains = section('Stuck', stuck.length ? `${stuck.length} blocked` : 'nothing blocked', stuck.length ? 'warn' : 'ok');
+    if (boardFailed && !issues.length) {
+      board.append(el('p', 'hb-empty is-warn', t.boardError));
+      return;
+    }
+    if (!issues.length) {
+      board.append(el('p', 'hb-empty', t.boardEmpty));
+      return;
+    }
+
+    // 1. Stuck chains: the blocked issue, then what it waits on and what it holds up.
+    const chains = section(t.stuck, stuck.length ? t.blockedCount(stuck.length) : t.nothingBlocked, stuck.length ? 'warn' : 'ok');
     for (const s of stuck) {
       const chain = el('div', 'hb-chain' + (changed.has(s.key) ? ' is-changed' : ''));
       chain.append(row(s, changed.has(s.key)));
@@ -529,13 +677,13 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
       const unblockers = s.blockedBy.map((k) => byKey.get(k)).filter((x): x is BoardIssue => !!x);
       if (unblockers.length) {
         const u = el('div', 'hb-chain-sub');
-        u.append(el('span', 'hb-chain-label', 'Unblocked by'));
+        u.append(el('span', 'hb-chain-label', t.unblockedBy));
         for (const x of unblockers) u.append(row(x, changed.has(x.key), true));
         chain.append(u);
       }
       if (waiting.length) {
         const w = el('div', 'hb-chain-sub');
-        w.append(el('span', 'hb-chain-label', `Holding up ${waiting.length}`));
+        w.append(el('span', 'hb-chain-label', t.holdingUp(waiting.length)));
         for (const x of waiting) w.append(row(x, changed.has(x.key), true));
         chain.append(w);
       }
@@ -545,45 +693,57 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
 
     // 2. Late work.
     if (late.length) {
-      const l = section('Late', `${late.length} past due`, 'warn');
+      const l = section(t.late, t.pastDue(late.length), 'warn');
       for (const i of late) l.body.append(row(i, changed.has(i.key)));
       board.append(l.box);
     }
 
-    // 3. Your plate, in progress first.
-    const plate = section('Your plate', `${mine.length} open`);
+    // 3. Your plate, blocked and in progress first.
+    const plate = section(t.plate, t.openCount(mine.length));
     for (const i of [...mine].sort((a, b) => rankStatus(a) - rankStatus(b))) plate.body.append(row(i, changed.has(i.key)));
-    if (!mine.length) plate.body.append(el('p', 'hb-empty', 'Nothing open on you.'));
+    if (!mine.length) plate.body.append(el('p', 'hb-empty', t.plateEmpty));
     board.append(plate.box);
 
     // 4. Team load: share of open work per person; the overload rule is 40% with at least 6 open issues.
     const load = new Map<string, number>();
-    for (const i of open) load.set(i.assignee ?? 'Unassigned', (load.get(i.assignee ?? 'Unassigned') ?? 0) + 1);
-    const team = section('Team load', `${open.length} open`);
+    for (const i of open) load.set(i.assignee ?? t.unassigned, (load.get(i.assignee ?? t.unassigned) ?? 0) + 1);
+    const team = section(t.load, t.openCount(open.length));
+    const max = Math.max(1, ...load.values());
     for (const [who, n] of [...load.entries()].sort((a, b) => b[1] - a[1])) {
       const share = open.length ? n / open.length : 0;
       const heavy = share > 0.4 && open.length >= 6;
       const r = el('div', 'hb-load' + (heavy ? ' is-heavy' : ''));
-      const bar = el('div', 'hb-load-bar');
+      const av = el('span', 'hb-initials', initials(who));
+      const name = el('span', 'hb-load-name', who);
+      const track = el('div', 'hb-load-bar');
       const fill = el('div', 'hb-load-fill');
-      fill.style.width = `${Math.round(share * 100)}%`;
-      bar.append(fill);
-      r.append(el('span', 'hb-load-name', who), bar, el('span', 'hb-load-n', heavy ? `${n} · overloaded` : String(n)));
+      fill.style.width = `${Math.round((n / max) * 100)}%`;
+      track.append(fill);
+      const num = el('span', 'hb-load-n', String(n));
+      if (heavy) name.append(el('span', 'hb-pill is-warn', t.overloaded));
+      r.append(av, name, track, num);
       team.body.append(r);
     }
     board.append(team.box);
 
     // 5. Finished: one line, keys only.
     if (done.length) {
-      const d = section('Done', `${done.length}`, 'ok');
+      const d = section(t.done, String(done.length), 'ok');
       const keys = el('p', 'hb-done');
-      done.forEach((i, n) => {
-        if (n) keys.append(document.createTextNode('  '));
-        keys.append(el('span', 'hb-key' + (changed.has(i.key) ? ' is-changed' : ''), i.key));
-      });
+      for (const i of done) {
+        const k = el('span', 'hb-key is-done' + (changed.has(i.key) ? ' is-changed' : ''), i.key);
+        k.title = i.summary;
+        keys.append(k);
+      }
       d.body.append(keys);
       board.append(d.box);
     }
+  }
+
+  function stat(label: string, n: number, tone: 'warn' | 'ok' | 'good' | '') {
+    const s = el('div', 'hb-stat' + (tone ? ` is-${tone}` : ''));
+    s.append(el('span', 'hb-stat-n', String(n)), el('span', 'hb-stat-label', label));
+    return s;
   }
 
   function section(title: string, note: string, tone: 'warn' | 'ok' | '' = '') {
@@ -596,60 +756,87 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
   }
 
   function rankStatus(i: BoardIssue) {
-    return i.status === 'Blocked' ? 0 : i.statusCategory === 'inprogress' ? 1 : 2;
+    return /block/i.test(i.status) || i.flagged ? 0 : i.statusCategory === 'inprogress' ? 1 : 2;
   }
 
   function row(i: BoardIssue, changed: boolean, compact = false) {
     const r = el('div', 'hb-row' + (changed ? ' is-changed' : '') + (compact ? ' is-compact' : ''));
-    const state = i.status === 'Blocked' || i.flagged ? 'stuck' : i.statusCategory;
-    const dot = el('span', `hb-dot is-${state}`);
+    const stateName = /block/i.test(i.status) || i.flagged ? 'stuck' : i.statusCategory;
+    const dot = el('span', `hb-dot is-${stateName}`);
     dot.title = i.status;
-    r.append(dot, el('span', 'hb-key', i.key), el('span', 'hb-sum', i.summary));
+    const key = el('span', 'hb-key', i.key);
+    key.dir = 'ltr';
+    const sum = el('span', 'hb-sum', i.summary);
+    sum.dir = 'auto';
+    sum.title = i.summary;
+    r.append(dot, key, sum);
     const meta = el('span', 'hb-meta');
-    const bits = [i.status];
-    if (!compact && i.assignee && !i.mine) bits.push(i.assignee.split(' ')[0]);
-    if (i.dueDate) bits.push(`due ${i.dueDate.slice(5)}`);
-    meta.textContent = bits.join(' · ');
+    const status = el('span', `hb-status is-${stateName}`, i.status);
+    meta.append(status);
+    if (!compact && i.assignee && !i.mine) meta.append(el('span', 'hb-initials is-sm', initials(i.assignee)));
+    if (i.dueDate) meta.append(el('span', 'hb-due', i.dueDate.slice(5)));
     r.append(meta);
     return r;
   }
 
   function renderReceipts(recs: ReceiptView[]) {
+    lastReceipts = recs;
     receipts.replaceChildren();
     if (!recs.length) {
-      receipts.append(el('p', 'hb-empty', 'Every change you confirm shows up here, with undo.'));
+      const empty = el('div', 'hb-empty-card');
+      empty.append(icon('receipt'), el('p', '', t.receiptEmpty));
+      receipts.append(empty);
       return;
     }
     for (const r of recs.slice(0, 6)) {
-      const box = el('div', 'hb-rec' + (r.undone ? ' is-undone' : ''));
+      const box = el('article', 'hb-rec' + (r.undone ? ' is-undone' : r.allOk ? '' : ' is-partial'));
       const top = el('div', 'hb-rec-top');
-      top.append(el('span', 'hb-rec-time', new Date(r.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })));
-      if (r.undone) top.append(el('span', 'hb-tag', 'Undone'));
-      else if (r.canUndo) {
-        const u = el('button', 'hb-link', 'Undo');
+      top.append(
+        el('span', `hb-pill is-${r.kind}`, r.undone ? t.undone : t.kind[r.kind]),
+        el('span', 'hb-rec-time', new Date(r.at).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' })),
+      );
+      if (r.canUndo) {
+        const u = el('button', 'hb-ghost is-sm');
+        u.append(icon('undo'), document.createTextNode(t.undo));
         u.type = 'button';
         u.onclick = async () => {
           u.disabled = true;
           const res = await backend.undo(r.id).catch(() => ({ ok: false }));
-          say('sys', res.ok ? 'Undone. Jira is back to how it was.' : 'Some changes could not be undone. Check the issues.');
+          say('sys', res.ok ? t.undoOk : t.undoFail);
           await refresh();
         };
         top.append(u);
       }
       box.append(top);
-      const heard = el('p', 'hb-heard', `“${r.heard}”`);
+      const said = el('div', 'hb-rec-said');
+      said.append(el('span', 'hb-rec-label', t.youSaid));
+      const heard = el('q', 'hb-heard', r.heard);
       heard.dir = 'auto';
-      box.append(heard);
-      const ul = el('ul');
-      for (const l of r.lines) ul.append(el('li', l.ok ? '' : 'is-fail', l.text));
+      said.append(heard);
+      box.append(said);
+      const ul = el('ul', 'hb-rec-lines');
+      for (const l of r.lines) {
+        const li = el('li', l.ok ? '' : 'is-fail');
+        li.dir = 'auto';
+        li.append(icon(l.ok ? 'check' : 'x'), withKeys(l.text));
+        ul.append(li);
+      }
       box.append(ul);
+      if (r.readback && r.readback !== r.heard) {
+        const det = el('details', 'hb-rec-more');
+        det.append(el('summary', '', t.proposed));
+        const p = el('p', '', r.readback);
+        p.dir = 'auto';
+        det.append(p);
+        box.append(det);
+      }
       receipts.append(box);
     }
   }
 
   setLang(lang);
   window.speechSynthesis?.addEventListener?.('voiceschanged', renderVoiceStatus);
-  say('hb', UI[lang].hello, lang);
+  say('hb', t.hello, lang);
   void refresh();
   if (alertTimer) clearInterval(alertTimer);
   if (alertKick) clearTimeout(alertKick);
@@ -660,27 +847,72 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
   return { send };
 }
 
-function micProblem(reason: string): string {
-  switch (reason) {
-    case 'not_granted':
-      return 'Microphone is off for this page. You can keep typing.';
-    case 'unavailable':
-      return 'Voice input is not available here. You can keep typing.';
-    case 'rate_limited':
-      return 'Voice input is busy. Try again in a moment.';
-    case 'dismissed':
-      return 'No problem. Tap the mic again when you are ready.';
-    default:
-      return 'The microphone stopped. Try again, or type.';
-  }
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  return ((parts[0]?.[0] ?? '') + (parts.length > 1 ? (parts[parts.length - 1][0] ?? '') : '')).toUpperCase() || '?';
 }
 
-const MIC_SVG =
-  '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M12 14a3 3 0 0 0 3-3V5a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2Z"/></svg>';
+/** Pick an icon for a change line by its shape, in any of the three languages. */
+function changeIcon(line: string): IconName {
+  if (/→|moved|passe à|نُقل/.test(line)) return 'arrow';
+  if (/flag|signal|علامة|عُلّم/i.test(line)) return 'flag';
+  if (/block|bloque|يحظر/i.test(line)) return 'link';
+  if (/notif|prévenu|أُبلغ/i.test(line)) return 'bell';
+  if (/follow-up|suivi|متابعة|Created|créé|أُنشئت/i.test(line)) return 'plus';
+  if (/Confluence/.test(line)) return 'doc';
+  if (/assign|أُسند/i.test(line)) return 'user';
+  return 'comment';
+}
 
-/** A constant, app-owned SVG: the only markup this file ever parses. */
-function micIcon(): Node {
-  const t = document.createElement('template');
-  t.innerHTML = MIC_SVG;
-  return t.content.firstChild!;
+// App-owned, constant SVG paths: the only markup this file ever builds from strings.
+type IconName =
+  | 'wave'
+  | 'mic'
+  | 'send'
+  | 'volume'
+  | 'mute'
+  | 'bell'
+  | 'shield'
+  | 'check'
+  | 'x'
+  | 'undo'
+  | 'receipt'
+  | 'arrow'
+  | 'flag'
+  | 'link'
+  | 'plus'
+  | 'doc'
+  | 'user'
+  | 'comment';
+const PATHS: Record<IconName, string> = {
+  wave: 'M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4',
+  mic: 'M12 15a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3ZM19 11a7 7 0 0 1-14 0M12 18v3',
+  send: 'M5 12h13M13 6l6 6-6 6',
+  volume: 'M4 9v6h4l5 4V5L8 9H4ZM16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12',
+  mute: 'M4 9v6h4l5 4V5L8 9H4ZM17 9l5 6M22 9l-5 6',
+  bell: 'M6 16V11a6 6 0 1 1 12 0v5l2 2H4l2-2ZM10 20a2 2 0 0 0 4 0',
+  shield: 'M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3ZM9 12l2 2 4-4',
+  check: 'M5 12.5 10 17 19 7',
+  x: 'M6 6l12 12M18 6 6 18',
+  undo: 'M9 7 4 12l5 5M4 12h11a5 5 0 0 1 0 10h-2',
+  receipt: 'M6 3h12v18l-3-2-3 2-3-2-3 2V3ZM9 8h6M9 12h6',
+  arrow: 'M5 12h14M13 6l6 6-6 6',
+  flag: 'M5 21V4M5 4h11l-2 4 2 4H5',
+  link: 'M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66L12 6.34M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1',
+  plus: 'M12 5v14M5 12h14',
+  doc: 'M7 3h7l5 5v13H7V3ZM14 3v5h5M10 13h6M10 17h6',
+  user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4 21a8 8 0 0 1 16 0',
+  comment: 'M5 5h14v10H9l-4 4V5Z',
+};
+
+function icon(name: IconName): SVGSVGElement {
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('class', `hb-ico is-${name}`);
+  const p = document.createElementNS(NS, 'path');
+  p.setAttribute('d', PATHS[name]);
+  svg.append(p);
+  return svg;
 }

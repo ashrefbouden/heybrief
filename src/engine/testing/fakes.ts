@@ -156,6 +156,22 @@ export class FakeJira implements JiraPort {
     if (!a.blocks.includes(blockedKey)) a.blocks.push(blockedKey);
     if (!b.blockedBy.includes(blockerKey)) b.blockedBy.push(blockerKey);
   }
+  async unlinkBlocks(blockerKey: string, blockedKey: string) {
+    this.log('unlinkBlocks', blockerKey, blockedKey);
+    const a = this.issues.get(blockerKey);
+    const b = this.issues.get(blockedKey);
+    if (a) a.blocks = a.blocks.filter((k) => k !== blockedKey);
+    if (b) b.blockedBy = b.blockedBy.filter((k) => k !== blockerKey);
+  }
+  async deleteIssue(key: string) {
+    this.log('deleteIssue', key);
+    this.must(key);
+    this.issues.delete(key);
+    for (const i of this.issues.values()) {
+      i.blocks = i.blocks.filter((k) => k !== key);
+      i.blockedBy = i.blockedBy.filter((k) => k !== key);
+    }
+  }
   async assign(key: string, accountId: string | null) {
     this.log('assign', key, accountId);
     const i = this.must(key);

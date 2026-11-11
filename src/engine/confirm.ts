@@ -163,6 +163,7 @@ export async function resolvePending(
     at: deps.clock.now().toISOString(),
     kind: raw.kind,
     heard: raw.heard,
+    readback: raw.readback,
     results,
   };
   await saveReceipt(deps, receipt);
@@ -209,7 +210,7 @@ export async function undoReceipt(deps: Deps, accountId: string, receiptId: stri
 }
 
 /** Receipts with an undone flag, for the gadget. */
-export async function listReceiptViews(deps: Pick<Deps, 'store'>, accountId: string) {
+export async function listReceiptViews(deps: Pick<Deps, 'store'>, accountId: string, lang: Lang = 'en') {
   const list = await listReceipts(deps, accountId);
-  return Promise.all(list.map(async (r) => viewReceipt(r, (await deps.store.get(`undone:${r.id}`)) !== undefined)));
+  return Promise.all(list.map(async (r) => viewReceipt(r, (await deps.store.get(`undone:${r.id}`)) !== undefined, lang)));
 }

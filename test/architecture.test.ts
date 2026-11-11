@@ -17,7 +17,8 @@ describe('architecture rules', () => {
     for (const f of files('src')) expect(readFileSync(f, 'utf8'), f).not.toMatch(/currentUser\(\)/);
   });
   it('no external fetch: data stays on Atlassian', () => {
+    // The SVG XML namespace is an identifier, not a request.
     for (const f of files('src'))
-      expect(readFileSync(f, 'utf8'), f).not.toMatch(/\bfetch\(|https?:\/\/(?!example\.atlassian\.net)/);
+      expect(readFileSync(f, 'utf8'), f).not.toMatch(/\bfetch\(|https?:\/\/(?!example\.atlassian\.net|www\.w3\.org\/2000\/svg)/);
   });
 });

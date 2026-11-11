@@ -37,6 +37,7 @@ export function localBackend(): Backend {
     speech: a.speech,
     lang: a.lang,
     pendingId: a.pendingId,
+    changes: a.pendingId ? a.changes : undefined,
     expectReply: a.expectReply,
     failed: a.failed,
     alert: alertBanner(a.data),
@@ -69,7 +70,7 @@ export function localBackend(): Backend {
           mine: i.assignee?.accountId === ME.accountId,
         }));
     },
-    receipts: () => listReceiptViews(deps, ME.accountId),
+    receipts: (lang) => listReceiptViews(deps, ME.accountId, lang),
     async undo(id) {
       const r = await undoReceipt(deps, ME.accountId, id);
       return { ok: r.length > 0 && r.every((x) => x.ok) };
