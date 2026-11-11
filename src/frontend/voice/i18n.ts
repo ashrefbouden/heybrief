@@ -68,6 +68,12 @@ export interface Strings {
   done: string;
   due: (d: string) => string;
   boardEmpty: string;
+  firstRunTitle: string;
+  firstRunBody: string;
+  firstRunKey: string;
+  firstRunLoad: string;
+  firstRunWorking: string;
+  firstRunDone: (risk: string, talk: string) => string;
   boardError: string;
   // receipt
   receipt: string;
@@ -149,7 +155,13 @@ const en: Strings = {
   unassigned: 'Unassigned',
   done: 'Done this week',
   due: (d) => `due ${d}`,
-  boardEmpty: 'No issues in this project yet. An admin can load demo data from HeyBrief settings.',
+  boardEmpty: 'No project to show yet. Ask a Jira admin to load HeyBrief demo data, or to pick projects in HeyBrief settings.',
+  firstRunTitle: 'Try HeyBrief in two minutes',
+  firstRunBody: 'Load a demo story into an empty test project: 14 issues, three real risks, one teammate overloaded. Nothing outside that project is touched.',
+  firstRunKey: 'Empty project key',
+  firstRunLoad: 'Load demo data',
+  firstRunWorking: 'Creating the demo issues, about 20 seconds…',
+  firstRunDone: (r, t) => `Demo loaded. Now say “${r}”, then “${t}”.`,
   boardError: 'Could not load the project. Answers still work.',
   receipt: 'Receipt',
   receiptNote: 'Every approved change, with undo',
@@ -243,7 +255,13 @@ const fr: Strings = {
   unassigned: 'Non assigné',
   done: 'Terminé cette semaine',
   due: (d) => `échéance ${d}`,
-  boardEmpty: 'Aucun ticket dans ce projet. Un admin peut charger la démo depuis les réglages HeyBrief.',
+  boardEmpty: 'Aucun projet à afficher. Demandez à un admin Jira de charger la démo HeyBrief ou de choisir des projets dans les réglages.',
+  firstRunTitle: 'Essayez HeyBrief en deux minutes',
+  firstRunBody: 'Chargez une histoire de démo dans un projet de test vide : 14 tickets, trois vrais risques, un coéquipier surchargé. Rien d’autre n’est modifié.',
+  firstRunKey: 'Clé d’un projet vide',
+  firstRunLoad: 'Charger la démo',
+  firstRunWorking: 'Création des tickets de démo, environ 20 secondes…',
+  firstRunDone: (r, t) => `Démo chargée. Dites « ${r} », puis « ${t} ».`,
   boardError: 'Impossible de charger le projet. Les réponses fonctionnent toujours.',
   receipt: 'Reçu',
   receiptNote: 'Chaque changement approuvé, avec annulation',
@@ -337,7 +355,13 @@ const ar: Strings = {
   unassigned: 'غير مُسندة',
   done: 'أُنجزت هذا الأسبوع',
   due: (d) => `الموعد ${d}`,
-  boardEmpty: 'لا مهام في هذا المشروع بعد. يمكن للمسؤول تحميل بيانات العرض من إعدادات HeyBrief.',
+  boardEmpty: 'لا مشروع للعرض بعد. اطلب من مسؤول Jira تحميل بيانات عرض HeyBrief أو اختيار المشاريع في الإعدادات.',
+  firstRunTitle: 'جرّب HeyBrief في دقيقتين',
+  firstRunBody: 'حمّل قصة عرض في مشروع اختبار فارغ: 14 مهمة وثلاثة مخاطر حقيقية وزميل مثقل. لا يُمس شيء خارج ذلك المشروع.',
+  firstRunKey: 'مفتاح مشروع فارغ',
+  firstRunLoad: 'تحميل بيانات العرض',
+  firstRunWorking: 'جارٍ إنشاء مهام العرض، نحو 20 ثانية…',
+  firstRunDone: (r, t) => `حُمّل العرض. قل «${r}» ثم «${t}».`,
   boardError: 'تعذّر تحميل المشروع. الإجابات ما زالت تعمل.',
   receipt: 'الإيصال',
   receiptNote: 'كل تغيير وافقت عليه، مع التراجع',

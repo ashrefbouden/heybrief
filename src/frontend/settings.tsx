@@ -60,6 +60,7 @@ function App() {
   const [settings, setSettings] = useState<Settings>();
   const [failed, setFailed] = useState(false);
   const [projects, setProjects] = useState('');
+  const [space, setSpace] = useState('');
   const [demoProject, setDemoProject] = useState('');
   const [seed, setSeed] = useState<SeedResult>();
   const [note, setNote] = useState<{ kind: 'information' | 'error' | 'success'; text: string }>();
@@ -70,6 +71,7 @@ function App() {
       .then((x) => {
         setSettings(x);
         setProjects(x.projectKeys.join(', '));
+        setSpace(x.standupSpaceKey);
         setDemoProject(x.projectKeys[0] ?? '');
       })
       .catch(() => setFailed(true));
@@ -130,12 +132,17 @@ function App() {
             <Label labelFor="projects">{s.projectsBody}</Label>
             <Inline space="space.100" alignBlock="end">
               <Textfield id="projects" name="projects" value={projects} onChange={(e) => setProjects(e.target.value)} />
+            </Inline>
+            <Label labelFor="space">{s.spaceBody}</Label>
+            <Inline space="space.100" alignBlock="end">
+              <Textfield id="space" name="space" value={space} onChange={(e) => setSpace(e.target.value)} />
               <Button
                 isDisabled={busy}
                 onClick={() =>
                   run(async () => {
-                    const x = await call<Settings>('saveSettings', { projectKeys: projects.split(',') });
+                    const x = await call<Settings>('saveSettings', { projectKeys: projects.split(','), standupSpaceKey: space.trim() });
                     setProjects(x.projectKeys.join(', '));
+                    setSpace(x.standupSpaceKey);
                     setNote({ kind: 'success', text: s.saved(x.projectKeys.join(', ')) });
                   })
                 }

@@ -142,12 +142,23 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
   if (backend.simulateIncident) {
     simBtn = el('button', 'hb-ghost is-danger');
     simBtn.type = 'button';
+    simBtn.hidden = !!backend.pageInfo; // live page: admins with a demo project only
     simBtn.onclick = async () => {
-      await backend.simulateIncident!();
+      simBtn!.disabled = true;
+      try {
+        await backend.simulateIncident!();
+      } catch (e) {
+        say('sys', e instanceof Error ? e.message : t.failed);
+        return;
+      } finally {
+        simBtn!.disabled = false;
+      }
       say('sys', t.demoIncidentDone);
       await refresh();
       if (alertKick) clearTimeout(alertKick);
+      // Jira search can take a few seconds to see a new issue: look now, and again shortly.
       alertKick = setTimeout(() => void pollAlerts(), 1500);
+      setTimeout(() => void pollAlerts(), 6000);
     };
     demo.append(simBtn);
   }
@@ -162,6 +173,15 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
     };
     demo.append(outBtn);
   }
+  let pageInfo: { isAdmin: boolean; projectKey: string } | undefined;
+  backend
+    .pageInfo?.()
+    .then((p) => {
+      pageInfo = p;
+      if (simBtn) simBtn.hidden = !(p.isAdmin && p.projectKey);
+      if (lastIssues && !lastIssues.length) renderBoard(lastIssues, false);
+    })
+    .catch(() => undefined);
   head.append(brand, badge, controls);
   if (demo.childElementCount) head.append(demo);
 
@@ -677,7 +697,7 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
       return;
     }
     if (!issues.length) {
-      board.append(el('p', 'hb-empty', t.boardEmpty));
+      board.append(backend.loadDemo && pageInfo?.isAdmin ? firstRun() : el('p', 'hb-empty', t.boardEmpty));
       return;
     }
 
@@ -751,6 +771,43 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
       d.body.append(keys);
       board.append(d.box);
     }
+  }
+
+  /** First run on an empty site: load the demo story right here, no settings page to find. */
+  function firstRun(): HTMLElement {
+    const box = el('form', 'hb-firstrun');
+    box.append(el('strong', '', t.firstRunTitle), el('p', '', t.firstRunBody));
+    const row = el('div', 'hb-firstrun-row');
+    const key = el('input', 'hb-firstrun-key');
+    key.placeholder = 'DEMO';
+    key.maxLength = 20;
+    key.dir = 'ltr';
+    key.setAttribute('aria-label', t.firstRunKey);
+    const go = el('button', 'hb-btn hb-btn-primary', t.firstRunLoad);
+    go.type = 'submit';
+    row.append(key, go);
+    box.append(row);
+    box.onsubmit = async (e) => {
+      e.preventDefault();
+      const pk = key.value.trim().toUpperCase();
+      if (!/^[A-Z][A-Z0-9_]{0,19}$/.test(pk)) {
+        key.focus();
+        return;
+      }
+      go.disabled = key.disabled = true;
+      say('sys', t.firstRunWorking);
+      try {
+        const r = await backend.loadDemo!(pk);
+        pageInfo = { isAdmin: true, projectKey: pk };
+        if (simBtn) simBtn.hidden = false;
+        say('hb', r.script ? t.firstRunDone(r.script.risk, r.script.talkback) : r.message, lang);
+        await refresh();
+      } catch (err) {
+        say('sys', err instanceof Error ? err.message : t.failed);
+        go.disabled = key.disabled = false;
+      }
+    };
+    return box;
   }
 
   function stat(label: string, n: number, tone: 'warn' | 'ok' | 'good' | '') {
@@ -859,6 +916,15 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
   if (alertTimer) clearInterval(alertTimer);
   if (alertKick) clearTimeout(alertKick);
   if (backend.alerts) {
+    // Coming back to the tab is when news matters: check at once (at most every 10 s).
+    let lastFocusPoll = 0;
+    const onBack = () => {
+      if (document.visibilityState !== 'visible' || Date.now() - lastFocusPoll < 10_000) return;
+      lastFocusPoll = Date.now();
+      void pollAlerts();
+    };
+    document.addEventListener('visibilitychange', onBack);
+    window.addEventListener('focus', onBack);
     alertKick = setTimeout(() => void pollAlerts(), ALERT_FIRST_MS);
     alertTimer = setInterval(() => void pollAlerts(), ALERT_POLL_MS);
   }

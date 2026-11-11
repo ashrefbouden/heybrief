@@ -122,7 +122,15 @@ export class ForgeJira implements JiraPort {
     )
       throw new Error('invalid scope'); // keys go into JQL: validate, never interpolate free text
 
-    const issues = await this.runJql(`${jql} ORDER BY updated DESC`, flag);
+    let issues: Issue[];
+    try {
+      issues = await this.runJql(`${jql} ORDER BY updated DESC`, flag);
+    } catch (e) {
+      // A configured project that was deleted or renamed makes the whole JQL fail with 400.
+      // Fall back to everything the user can see rather than going silent.
+      if (!(scope.kind === 'me' && base && /Jira 400/.test(String(e)))) throw e;
+      issues = await this.runJql(`statusCategory != Done ORDER BY updated DESC`, flag);
+    }
     if (this.mode.kind === 'user') return issues;
     const visible = await this.canBrowse(
       this.mode.accountId,

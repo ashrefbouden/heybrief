@@ -8,7 +8,7 @@ import type { Lang } from '../engine/types';
 import type { ForgeJira } from '../forge/jira';
 import { forgeStore } from '../forge/store';
 import { engineFor, loadSettings, saveSettings } from './wiring';
-import { isJiraAdmin, seedDemoProject } from './seed';
+import { createDemoIncident, isJiraAdmin, seedDemoProject } from './seed';
 
 const resolver = new Resolver();
 
@@ -83,7 +83,17 @@ resolver.define('alerts', async ({ payload, context }) => {
 resolver.define('board', async ({ context }) => {
   me(context);
   const { deps, settings } = await engineFor({ kind: 'user' });
-  const issues = await (deps.jira as ForgeJira).searchBoard(settings.projectKeys[0] ?? 'MP');
+  // Team pulse shows the first configured project that exists. None configured: an empty pulse,
+  // and the page offers demo data.
+  let issues: Awaited<ReturnType<ForgeJira['searchBoard']>> = [];
+  for (const pk of settings.projectKeys.slice(0, 3)) {
+    try {
+      issues = await (deps.jira as ForgeJira).searchBoard(pk);
+      break;
+    } catch {
+      /* deleted or renamed project: try the next one */
+    }
+  }
   return issues.map((i) => ({
     key: i.key,
     summary: i.summary,
@@ -97,6 +107,18 @@ resolver.define('board', async ({ context }) => {
     blocks: i.blocks,
     mine: i.assignee?.accountId === me(context),
   }));
+});
+
+/** What the voice page needs to offer first-run help: is this person an admin, and which project is shown. */
+resolver.define('pageInfo', async ({ context }) => {
+  const settings = await loadSettings();
+  return { isAdmin: await isJiraAdmin(me(context)), projectKey: settings.projectKeys[0] ?? '' };
+});
+
+/** Demo: create a real Highest-priority outage in the demo project so Heads-up fires. Admin only. */
+resolver.define('simulateIncident', async ({ context }) => {
+  if (!(await isJiraAdmin(me(context)))) throw new Error('Only Jira admins can create demo incidents.');
+  return { key: await createDemoIncident() };
 });
 
 // ---- Drive receipt gadget ----

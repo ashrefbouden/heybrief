@@ -106,15 +106,31 @@ export function forgeSeedPort(projectKey: string): SeedPort {
   };
 }
 
+/** Demo helper for the voice page: a real unassigned Highest-priority outage that Heads-up should catch. */
+export async function createDemoIncident(): Promise<string> {
+  const settings = await loadSettings();
+  const pk = settings.projectKeys[0];
+  if (!pk) throw new Error('Load demo data first.');
+  return forgeSeedPort(pk).createIssue({
+    projectKey: pk,
+    summary: 'Checkout API down in production',
+    issueType: 'Task',
+    priority: 'Highest',
+    labels: ['heybrief-demo', 'incident'],
+  } as Parameters<SeedPort['createIssue']>[0]);
+}
+
 export async function seedDemoProject(accountId: string, projectKey: string) {
   const settings = await loadSettings();
   const pk = projectKey || settings.projectKeys[0];
+  if (!pk || !/^[A-Z][A-Z0-9_]{0,19}$/.test(pk)) throw new Error('Enter the key of an empty test project, for example DEMO.');
   const me = await json<any>(await api.asUser().requestJira(route`/rest/api/3/myself`, { headers: H }));
   const result = await seedDemo(forgeSeedPort(pk), {
     projectKey: pk,
     me: { accountId, displayName: me.displayName },
     now: new Date(),
   });
-  if (!settings.projectKeys.includes(pk)) await saveSettings({ projectKeys: [...settings.projectKeys, pk] });
+  // The demo project goes first: the voice page's Team pulse shows the first project.
+  await saveSettings({ projectKeys: [pk, ...settings.projectKeys.filter((k) => k !== pk)] });
   return result;
 }

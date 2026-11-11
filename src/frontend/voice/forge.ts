@@ -16,6 +16,17 @@ const backend: Backend = {
   receipts: (lang) => call<ReceiptView[]>('getReceipts', { lang }),
   undo: (receiptId) => call<{ ok: boolean }>('undo', { receiptId }),
   alerts: (lang) => call<Turn>('alerts', { lang }),
+  pageInfo: () => call<{ isAdmin: boolean; projectKey: string }>('pageInfo'),
+  async simulateIncident() {
+    await call('simulateIncident');
+  },
+  async loadDemo(projectKey) {
+    const r = await call<{ alreadyLoaded: boolean; notes: string[]; expectedRisks: number; script: { risk: string; talkback: string } }>(
+      'loadDemoData',
+      { projectKey },
+    );
+    return { message: r.alreadyLoaded ? r.notes[0] : '', script: r.alreadyLoaded ? undefined : r.script };
+  },
 };
 
 void view.theme?.enable?.().catch(() => undefined);

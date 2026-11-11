@@ -46,6 +46,10 @@ export interface Backend {
   simulateIncident?(): Promise<void>;
   /** Prototype only: a vendor status page reports an outage that touches demo work. */
   simulateOutage?(): Promise<void>;
+  /** Live page: whether to offer admin-only demo helpers. */
+  pageInfo?(): Promise<{ isAdmin: boolean; projectKey: string }>;
+  /** Live page, admins: one-click demo data into an empty project. Resolves with the judge script. */
+  loadDemo?(projectKey: string): Promise<{ message: string; script?: { risk: string; talkback: string } }>;
   /** Prototype only: start the story again. */
   reset?(): Promise<void>;
 }

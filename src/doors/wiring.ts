@@ -18,7 +18,9 @@ export interface AppSettings {
 }
 
 const SETTINGS_KEY = 'settings:app';
-const DEFAULTS: AppSettings = { projectKeys: ['MP'], standupSpaceKey: 'MP', outside: DEFAULT_OUTSIDE };
+// No default project: on a fresh site HeyBrief reads every project the user can see until an admin picks some
+// (loading demo data picks the demo project).
+const DEFAULTS: AppSettings = { projectKeys: [], standupSpaceKey: '', outside: DEFAULT_OUTSIDE };
 
 export async function loadSettings(): Promise<AppSettings> {
   const saved = (await forgeStore.get<Partial<AppSettings>>(SETTINGS_KEY)) ?? {};
@@ -28,7 +30,8 @@ export async function loadSettings(): Promise<AppSettings> {
 export async function saveSettings(s: Partial<AppSettings>): Promise<AppSettings> {
   const keys = (s.projectKeys ?? []).map((k) => k.trim().toUpperCase()).filter((k) => /^[A-Z][A-Z0-9_]{0,19}$/.test(k));
   const next = { ...(await loadSettings()), ...(keys.length ? { projectKeys: keys } : {}) };
-  if (s.standupSpaceKey && /^[A-Za-z0-9~]{1,255}$/.test(s.standupSpaceKey)) next.standupSpaceKey = s.standupSpaceKey;
+  if (s.standupSpaceKey === '') next.standupSpaceKey = '';
+  else if (s.standupSpaceKey && /^[A-Za-z0-9~]{1,255}$/.test(s.standupSpaceKey)) next.standupSpaceKey = s.standupSpaceKey;
   if (s.outside && typeof s.outside === 'object') {
     const vendors = Array.isArray(s.outside.vendors)
       ? s.outside.vendors.filter((v): v is VendorId => VENDOR_IDS.includes(v as VendorId))
@@ -51,5 +54,10 @@ export async function engineFor(mode: { kind: 'user' } | { kind: 'app'; accountI
     phraser: forgePhraser,
     status: settings.outside.enabled ? forgeStatus : undefined,
   };
-  return { hb: new HeyBrief(deps, { projectKeys: settings.projectKeys, outside: settings.outside }), deps, settings };
+  return { hb: new HeyBrief(deps, {
+      projectKeys: settings.projectKeys,
+      outside: settings.outside,
+      // No Confluence space chosen: skip the standup note rather than fail every update.
+      standupPage: !!settings.standupSpaceKey,
+    }), deps, settings };
 }
