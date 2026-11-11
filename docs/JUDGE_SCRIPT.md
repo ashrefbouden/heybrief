@@ -4,8 +4,8 @@ HeyBrief runs inside Jira on Atlassian Forge. Every change waits for your yes, a
 
 ## Before you start (one time, about 1 minute)
 
-1. In Jira, open **Settings (gear) > Personal settings > HeyBrief**.
-2. Under **Demo data**, enter an empty test project key and click **Load demo data**. This creates 14 labelled issues with three built-in risks. The page shows the exact issue keys it created; the steps below use the demo story's numbers (`-12`, `-15`, `-9`, `-42`).
+1. Create an empty test project (any key, for example `DEMO`).
+2. Open **Apps > HeyBrief** in the Jira top bar. On a fresh site the right-hand panel offers **Load demo data**: enter the project key and click it. This creates 14 labelled issues with three built-in risks, and tells you what to say first. (The same button is in **Personal settings > HeyBrief**.)
 3. Optional: add the **HeyBrief receipt** gadget to a Jira dashboard.
 
 Use Microsoft Edge or Chrome for the best voices. Typing works everywhere: every step below can be typed instead of spoken.
@@ -24,7 +24,8 @@ Open **Apps > HeyBrief** in the Jira top bar. Allow the microphone if asked.
 | 6 | Say "yes" | Team pulse updates live: changed rows flash. Each issue gets an audit comment naming you. |
 | 7 | Click **Undo** on that receipt | The statuses and the flag go back. Undo on step 4's receipt deletes the follow-up it created. Audit comments stay. |
 | 8 | Switch to **FR** or **عربي** and ask "Quels risques ?" or "ما هي المخاطر؟" | The answer, the yes card and the whole page switch language. Arabic switches the page to right to left. |
-| 9 | In another tab, create an unassigned **Highest** priority issue named "Checkout API down in production". Come back and wait up to a minute. | A Heads-up banner and chime, spoken once, with one proposed action (take it) waiting for your yes. |
+| 9 | Click **Simulate P1 outage** (top right, admins) | It creates a real unassigned Highest-priority "Checkout API down in production" issue. Within seconds: a Heads-up banner and chime, spoken once, proposing to assign it to you and start it. Say yes, then Undo it from the receipt. |
+| 10 | Optional, admins: **Personal settings > HeyBrief > Outside incidents** on | When a public status page (GitHub, Cloudflare, Vercel...) reports an outage, and an open issue names that service, HeyBrief interrupts and proposes a note on that issue. Off by default. |
 
 ## Also try
 
