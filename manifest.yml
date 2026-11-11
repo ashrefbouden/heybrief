@@ -6,23 +6,28 @@ modules:
       name: HeyBrief
       icon: resource:static;icon.svg
       prompt: >
-        You are HeyBrief, a hands-free assistant for Jira and Confluence. Answers are spoken aloud,
-        so keep them under 60 words and read the "speech" field of each action result as is.
+        You are HeyBrief, a hands-free assistant for Jira and Confluence.
+        Answers are spoken aloud, so keep them under 60 words and read the
+        "speech" field of each action result as is.
 
-        Use my-day for "what's on my plate" or a morning brief. Use risk-radar for risks or
-        "what's at risk". Use explain-risk when the user asks "why?" after a risk. Use
-        voice-standup when the user reports status on issues (done, blocked, starting).
-        Use urgent-alerts when the user asks what is urgent, on fire, or for alerts: say the
-        confidence it reports, and if it says keywords only, tell the user to verify.
-        Use read-issue for one issue and search-docs for Confluence pages.
+        Use my-day for "what's on my plate" or a morning brief. Use risk-radar
+        for risks or "what's at risk". Use explain-risk when the user asks
+        "why?" after a risk. Use voice-standup when the user reports status on
+        issues (done, blocked, starting). Use urgent-alerts when the user asks
+        what is urgent, on fire, or for alerts: say the confidence it reports,
+        and if it says keywords only, tell the user to verify. Use read-issue
+        for one issue and search-docs for Confluence pages.
 
-        WRITE SAFETY, ALWAYS: voice-standup and risk-radar never change Jira themselves. When a
-        result has needs_confirmation true, show its speech and STOP. Call confirm-change only after
-        the user's own next message says yes, passing that message verbatim as user_reply and the
-        confirmation_id from the result. Never confirm on the user's behalf, never reuse an old
-        confirmation_id, and if the user says anything else, tell them nothing was changed.
+        WRITE SAFETY, ALWAYS: voice-standup and risk-radar never change Jira
+        themselves. When a result has needs_confirmation true, show its speech
+        and STOP. Call confirm-change only after the user's own next message
+        says yes, passing that message verbatim as user_reply and the
+        confirmation_id from the result. Never confirm on the user's behalf,
+        never reuse an old confirmation_id, and if the user says anything else,
+        tell them nothing was changed.
 
-        Reply in the user's language: English, French, or Modern Standard Arabic.
+        Reply in the user's language: English, French, or Modern Standard
+        Arabic.
       conversationStarters:
         - What's on my plate today?
         - What's at risk this week?
@@ -44,7 +49,8 @@ modules:
       name: My day
       function: my-day-fn
       actionVerb: GET
-      description: The user's day in under 60 spoken words, sized to their drive time if minutes is given, with at most one decision.
+      description: The user's day in under 60 spoken words, sized to their drive time
+        if minutes is given, with at most one decision.
       inputs:
         minutes:
           title: Minutes available
@@ -83,9 +89,10 @@ modules:
       function: voice-standup-fn
       actionVerb: UPDATE
       description: >
-        Turn a spoken status update covering several issues into Jira changes (transitions, blocker
-        links, comments, owner notification, Confluence standup note). Proposes only; returns a
-        read-back and a confirmation_id. Nothing is written until confirm-change.
+        Turn a spoken status update covering several issues into Jira changes
+        (transitions, blocker links, comments, owner notification, Confluence
+        standup note). Proposes only; returns a read-back and a confirmation_id.
+        Nothing is written until confirm-change.
       inputs:
         update:
           title: Spoken update
@@ -102,8 +109,9 @@ modules:
       function: risk-radar-fn
       actionVerb: GET
       description: >
-        Up to three delivery risks from deterministic Jira rules, each with evidence issues,
-        a confirmed or estimated label, and one proposed fix (returned with a confirmation_id).
+        Up to three delivery risks from deterministic Jira rules, each with
+        evidence issues, a confirmed or estimated label, and one proposed fix
+        (returned with a confirmation_id).
       inputs:
         scope:
           title: Scope
@@ -119,7 +127,8 @@ modules:
       name: Explain risk
       function: explain-risk-fn
       actionVerb: GET
-      description: Answer "why?" about a risk from the last radar run, naming the issues and the rule that fired.
+      description: Answer "why?" about a risk from the last radar run, naming the
+        issues and the rule that fired.
       inputs:
         rank:
           title: Risk number
@@ -131,9 +140,10 @@ modules:
       function: urgent-alerts-fn
       actionVerb: GET
       description: >
-        The most urgent Jira event now (unowned P1 incident, security issue, blocker hitting a
-        deadline, P1 due today), with confidence, evidence and one proposed action plus a
-        confirmation_id. Nothing is written until confirm-change.
+        The most urgent Jira event now (unowned P1 incident, security issue,
+        blocker hitting a deadline, P1 due today), with confidence, evidence and
+        one proposed action plus a confirmation_id. Nothing is written until
+        confirm-change.
       inputs:
         language:
           title: Language
@@ -145,14 +155,16 @@ modules:
       function: confirm-change-fn
       actionVerb: UPDATE
       description: >
-        Apply a proposed change ONLY after the user explicitly said yes in their own message.
-        Expires 2 minutes after the proposal. Any reply other than yes cancels it.
+        Apply a proposed change ONLY after the user explicitly said yes in their
+        own message. Expires 2 minutes after the proposal. Any reply other than
+        yes cancels it.
       inputs:
         confirmation_id:
           title: Confirmation id
           type: string
           required: true
-          description: The confirmation_id from voice-standup, risk-radar, urgent-alerts or my-day.
+          description: The confirmation_id from voice-standup, risk-radar, urgent-alerts
+            or my-day.
         user_reply:
           title: User reply
           type: string
@@ -246,6 +258,6 @@ permissions:
     - read:space:confluence
 
 app:
-  id: ari:cloud:ecosystem::app/00000000-0000-0000-0000-000000000000
+  id: ari:cloud:ecosystem::app/97ce7671-faa4-49b0-9eb4-30f946f590c9
   runtime:
     name: nodejs22.x

@@ -12,7 +12,6 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "noEmit": true,
     "types": ["node"]
   },
   "include": ["src", "test"]

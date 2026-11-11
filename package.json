@@ -5,7 +5,7 @@
   "scripts": {
     "build": "node scripts/build-voice.mjs",
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "check": "npm run typecheck && npm test && npm run build",
     "lint": "forge lint"
   },
