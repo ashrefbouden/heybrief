@@ -2,15 +2,13 @@
 // UNVERIFIED until M0: issue type names ("Task", "Epic") and the priority field on the demo project.
 
 import api, { route } from '@forge/api';
-import { seedDemo, type SeedPort } from '../engine/demo/seed';
+import { DEMO_PROPERTY, seedDemo, type SeedPort } from '../engine/demo/seed';
 import type { Person } from '../engine/types';
+import { readJson, type HttpResponse } from '../forge/http';
 import { ForgeJira } from '../forge/jira';
 import { loadSettings, saveSettings } from './wiring';
 
-async function json<T>(res: Awaited<ReturnType<ReturnType<typeof api.asUser>['requestJira']>>): Promise<T> {
-  if (!res.ok) throw new Error(`Jira ${res.status}: ${(await res.text()).slice(0, 200)}`);
-  return (res.status === 204 ? undefined : await res.json()) as T;
-}
+const json = <T>(res: HttpResponse) => readJson<T>(res);
 
 const H = { Accept: 'application/json', 'Content-Type': 'application/json' };
 
@@ -18,7 +16,7 @@ export async function isJiraAdmin(_accountId: string): Promise<boolean> {
   // Runs as the signed-in user: Jira answers for them, not for the app.
   const res = await api.asUser().requestJira(route`/rest/api/3/mypermissions?permissions=ADMINISTER`, { headers: H });
   if (!res.ok) return false;
-  const j: any = await res.json();
+  const j: any = await readJson<any>(res);
   return j?.permissions?.ADMINISTER?.havePermission === true;
 }
 
@@ -27,14 +25,22 @@ export function forgeSeedPort(projectKey: string): SeedPort {
   const user = () => api.asUser();
   return {
     async findDemoIssues(pk) {
-      const out = await json<{ issues: Array<{ key: string }> }>(
+      const out = await json<{ issues: Array<{ key: string; properties?: Record<string, unknown> }> }>(
         await user().requestJira(route`/rest/api/3/search/jql`, {
           method: 'POST',
           headers: H,
-          body: JSON.stringify({ jql: `project = "${pk}" AND labels = "heybrief-demo"`, fields: ['summary'], maxResults: 50 }),
+          body: JSON.stringify({
+            jql: `project = "${pk}" AND labels = "heybrief-demo"`,
+            fields: ['summary'],
+            properties: [DEMO_PROPERTY],
+            maxResults: 50,
+          }),
         }),
       );
-      return out.issues.map((i) => i.key);
+      return (out?.issues ?? []).map((i) => ({ key: i.key, complete: i.properties?.[DEMO_PROPERTY] != null }));
+    },
+    async deleteIssue(key) {
+      await json(await user().requestJira(route`/rest/api/3/issue/${key}?deleteSubtasks=true`, { method: 'DELETE', headers: H }));
     },
     async assignableUsers(pk) {
       const users = await json<any[]>(
@@ -57,12 +63,25 @@ export function forgeSeedPort(projectKey: string): SeedPort {
       if (i.parentKey) fields.parent = { key: i.parentKey };
       const post = (f: Record<string, unknown>) =>
         user().requestJira(route`/rest/api/3/issue`, { method: 'POST', headers: H, body: JSON.stringify({ fields: f }) });
+      // Team-managed projects often hide priority or due date from the create screen: retry leaner,
+      // then set the due date afterwards (the overdue risk needs it) if the edit screen allows it.
       let res = await post(fields);
       if (res.status === 400) {
-        // Team-managed projects often hide priority or due date from the create screen: retry lean.
-        const lean = { ...fields };
-        delete lean.priority;
-        res = await post(lean);
+        const { priority: _p, ...noPriority } = fields;
+        res = await post(noPriority);
+        if (res.status === 400 && fields.duedate) {
+          const { duedate: _d, ...lean } = noPriority;
+          res = await post(lean);
+          const key = (await json<{ key: string }>(res)).key;
+          await user()
+            .requestJira(route`/rest/api/3/issue/${key}`, {
+              method: 'PUT',
+              headers: H,
+              body: JSON.stringify({ fields: { duedate: fields.duedate } }),
+            })
+            .catch(() => undefined);
+          return key;
+        }
       }
       return (await json<{ key: string }>(res)).key;
     },

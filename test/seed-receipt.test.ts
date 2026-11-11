@@ -8,14 +8,20 @@ import type { Issue, Op, Person } from '../src/engine/types';
 import { demo, ME, NOW } from './helpers';
 
 /** A SeedPort over FakeJira that honours the simulated-history property like the Forge adapter. */
-function fakeSite(users: Person[], opts: { noBlocked?: boolean } = {}) {
+function fakeSite(users: Person[], opts: { noBlocked?: boolean; failPropertyOnce?: boolean } = {}) {
   const clock = new FixedClock(NOW);
   const jira = new FakeJira([], clock, [ME, ...users]);
   const props = new Map<string, any>();
   const labels = new Map<string, string[]>();
   let n = 100;
   const port: SeedPort = {
-    findDemoIssues: async () => [...labels.entries()].filter(([, l]) => l.includes(DEMO_LABEL)).map(([k]) => k),
+    findDemoIssues: async () =>
+      [...labels.entries()].filter(([, l]) => l.includes(DEMO_LABEL)).map(([key]) => ({ key, complete: props.has(key) })),
+    deleteIssue: async (key) => {
+      jira.issues.delete(key);
+      labels.delete(key);
+      props.delete(key);
+    },
     assignableUsers: async () => [ME, ...users],
     createIssue: async (i) => {
       const key = `${i.projectKey}-${++n}`;
@@ -49,7 +55,13 @@ function fakeSite(users: Person[], opts: { noBlocked?: boolean } = {}) {
     },
     setFlag: (k, f) => jira.setFlag(k, f),
     linkBlocks: (a, b) => jira.linkBlocks(a, b),
-    setProperty: async (k, _p, v) => void props.set(k, v),
+    setProperty: async (k, _p, v) => {
+      if (opts.failPropertyOnce) {
+        opts.failPropertyOnce = false;
+        throw new Error('Unexpected end of JSON input');
+      }
+      props.set(k, v);
+    },
   };
   /** What the Forge adapter would return: real issue with simulated ages applied. */
   const read = (): Issue[] => [...jira.issues.values()].map((i) => ({ ...i, ...applyDemoHistory(i, props.get(i.key)) }));
@@ -107,6 +119,21 @@ describe('demo seeder on a real site', () => {
     const again = await seedDemo(site.port, { projectKey: 'HB', me: ME, now: NOW });
     expect(again.alreadyLoaded).toBe(true);
     expect(site.jira.issues.size).toBe(14);
+  });
+
+  it('rebuilds a half-finished load instead of calling it loaded', async () => {
+    const site = fakeSite(TEAM, { failPropertyOnce: true });
+    await expect(seedDemo(site.port, { projectKey: 'HB', me: ME, now: NOW })).rejects.toThrow(/Press Load demo data again/);
+    expect(site.jira.issues.size).toBe(14); // the partial set the real site was left with
+
+    const r = await seedDemo(site.port, { projectKey: 'HB', me: ME, now: NOW });
+    expect(r.alreadyLoaded).toBe(false);
+    expect(r.notes.join(' ')).toMatch(/Removed 14 issues left by an unfinished demo load/);
+    expect(site.jira.issues.size).toBe(14);
+    expect(runRadar(site.read(), NOW, ME.accountId)).toHaveLength(3);
+
+    const again = await seedDemo(site.port, { projectKey: 'HB', me: ME, now: NOW });
+    expect(again.alreadyLoaded).toBe(true);
   });
 
   it('works alone: two risks and a clear note', async () => {

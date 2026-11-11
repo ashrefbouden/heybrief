@@ -13,6 +13,7 @@
 import api, { route } from '@forge/api';
 import type { JiraPort } from '../engine/ports';
 import { applyDemoHistory, DEMO_LABEL, DEMO_PROPERTY } from '../engine/demo/seed';
+import { readJson } from './http';
 import { PermissionChecker, type PermissionHttp, type PermissionName } from '../engine/permissions';
 import type { Issue, Person, Priority, Scope, StatusCategory, Transition } from '../engine/types';
 
@@ -57,8 +58,7 @@ export class ForgeJira implements JiraPort {
       ...init,
       headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
     });
-    if (!res.ok) throw new Error(`Jira ${res.status}: ${(await res.text()).slice(0, 200)}`);
-    return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
+    return readJson<T>(res);
   }
 
   private toIssue(raw: any): Issue {
@@ -159,8 +159,7 @@ export class ForgeJira implements JiraPort {
       headers: { Accept: 'application/json' },
     });
     if (res.status === 404) return undefined;
-    if (!res.ok) throw new Error(`Jira ${res.status}`);
-    const issue = this.toIssue(await res.json());
+    const issue = this.toIssue(await readJson<any>(res));
     if (this.mode.kind === 'app' && !(await this.canBrowse(this.mode.accountId, [key])).has(key)) return undefined;
     return issue;
   }
@@ -243,7 +242,7 @@ export class ForgeJira implements JiraPort {
         // asApp lookup only resolves the id; visibility is decided by the permission check.
         const res = await api.asApp().requestJira(route`/rest/api/3/issue/${key}?fields=summary`);
         if (!res.ok) return undefined;
-        const j: any = await res.json();
+        const j: any = await readJson<any>(res);
         this.ids.set(key, j.id);
       }
       return Number(this.ids.get(key));
@@ -255,7 +254,7 @@ export class ForgeJira implements JiraPort {
         body: JSON.stringify({ accountId, projectPermissions: [{ permissions, issues: issueIds }] }),
       });
       if (!res.ok) return { ok: false, status: res.status };
-      const out: any = await res.json();
+      const out: any = (await readJson<any>(res)) ?? {};
       const granted = new Map<PermissionName, Set<number>>();
       for (const p of out.projectPermissions ?? []) granted.set(p.permission, new Set<number>((p.issues ?? []).map(Number)));
       return { ok: true, granted };
@@ -268,7 +267,7 @@ export class ForgeJira implements JiraPort {
           : route`/rest/api/3/user/permission/search?accountId=${accountId}&permissions=${perms}&projectKey=${target.projectKey}&maxResults=1`;
       const res = await api.asApp().requestJira(path, { headers: { Accept: 'application/json' } });
       if (!res.ok) return false;
-      const users: any[] = await res.json();
+      const users: any[] = (await readJson<any[]>(res)) ?? [];
       return users.some((u) => u.accountId === accountId);
     },
   };

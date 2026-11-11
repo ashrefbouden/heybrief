@@ -18,8 +18,13 @@ export interface DemoHistory {
 }
 
 export interface SeedPort {
-  /** Keys of issues in the project that already carry the demo label. */
-  findDemoIssues(projectKey: string): Promise<string[]>;
+  /**
+   * Issues in the project that already carry the demo label. `complete` is true once the issue's
+   * last seeding step (the simulated-history property) landed, so a half-finished load is detectable.
+   */
+  findDemoIssues(projectKey: string): Promise<Array<{ key: string; complete: boolean }>>;
+  /** Used only to clear a half-finished demo load before rebuilding it. */
+  deleteIssue(key: string): Promise<void>;
   /** People who can be assigned issues in the project. */
   assignableUsers(projectKey: string): Promise<Person[]>;
   createIssue(input: {
@@ -54,8 +59,10 @@ export async function seedDemo(port: SeedPort, input: { projectKey: string; me: 
   const { projectKey, me, now } = input;
   if (!/^[A-Z][A-Z0-9_]{0,19}$/.test(projectKey)) throw new Error('invalid project key');
 
+  const rows = demoRows(me);
+  const notes: string[] = [];
   const existing = await port.findDemoIssues(projectKey);
-  if (existing.length) {
+  if (existing.length === rows.length && existing.every((e) => e.complete)) {
     return {
       alreadyLoaded: true,
       keys: {},
@@ -65,6 +72,11 @@ export async function seedDemo(port: SeedPort, input: { projectKey: string; me: 
       notes: [`Demo data is already in ${projectKey} (${existing.length} issues labelled ${DEMO_LABEL}).`],
     };
   }
+  if (existing.length) {
+    // An earlier load stopped partway. Patching it up is fragile (links, statuses, ages), so rebuild.
+    await Promise.all(existing.map((e) => port.deleteIssue(e.key)));
+    notes.push(`Removed ${existing.length} issues left by an unfinished demo load, then loaded it again.`);
+  }
 
   // Map the four personas onto real teammates, in order. Missing personas stay unassigned.
   const others = (await port.assignableUsers(projectKey)).filter((p) => p.accountId !== me.accountId);
@@ -73,9 +85,7 @@ export async function seedDemo(port: SeedPort, input: { projectKey: string; me: 
   personaOrder.forEach((name, i) => mapped.set(DEMO_PEOPLE[name].accountId, others[i]));
   const realPerson = (p?: Person) => (!p ? undefined : p.accountId === me.accountId ? me : mapped.get(p.accountId));
 
-  const rows = demoRows(me);
   const keys: Record<number, string> = {};
-  const notes: string[] = [];
   const seededAt = now.toISOString();
   const iso = (daysAgo: number) => new Date(now.getTime() - daysAgo * DAY).toISOString();
   const date = (inDays: number) => new Date(now.getTime() + inDays * DAY).toISOString().slice(0, 10);
@@ -93,31 +103,36 @@ export async function seedDemo(port: SeedPort, input: { projectKey: string; me: 
       parentKey: r.epic ? keys[r.epic] : undefined,
       labels: [DEMO_LABEL],
     });
-  for (const r of rows.filter((x) => x.n === 40)) keys[r.n] = await create(r);
-  const rest = rows.filter((x) => x.n !== 40);
-  (await Promise.all(rest.map(create))).forEach((k, i) => (keys[rest[i].n] = k));
+  try {
+    for (const r of rows.filter((x) => x.n === 40)) keys[r.n] = await create(r);
+    const rest = rows.filter((x) => x.n !== 40);
+    (await Promise.all(rest.map(create))).forEach((k, i) => (keys[rest[i].n] = k));
 
-  // Round 3: status, flag, links and simulated history per issue, issues in parallel.
-  await Promise.all(
-    rows.map(async (r) => {
-      const key = keys[r.n];
-      if (r.status !== 'To Do') {
-        const ok = await port.transitionTo(key, r.status);
-        if (!ok && r.status === 'Blocked') {
-          await port.transitionTo(key, 'In Progress');
-          notes.push(`No "Blocked" status in this workflow: ${key} is In Progress and flagged instead.`);
-        } else if (!ok) notes.push(`Could not move ${key} to ${r.status}.`);
-      }
-      if (r.flagged) await port.setFlag(key, true);
-      for (const b of r.blocks ?? []) await port.linkBlocks(key, keys[b]);
-      const history: DemoHistory = {
-        seededAt,
-        statusChangedAt: iso(r.statusDaysAgo ?? 1),
-        updatedAt: iso(r.updatedDaysAgo ?? Math.min(r.statusDaysAgo ?? 1, 1)),
-      };
-      await port.setProperty(key, DEMO_PROPERTY, history);
-    }),
-  );
+    // Round 3: status, flag, links and simulated history per issue, issues in parallel.
+    await Promise.all(
+      rows.map(async (r) => {
+        const key = keys[r.n];
+        if (r.status !== 'To Do') {
+          const ok = await port.transitionTo(key, r.status);
+          if (!ok && r.status === 'Blocked') {
+            await port.transitionTo(key, 'In Progress');
+            notes.push(`No "Blocked" status in this workflow: ${key} is In Progress and flagged instead.`);
+          } else if (!ok) notes.push(`Could not move ${key} to ${r.status}.`);
+        }
+        if (r.flagged) await port.setFlag(key, true);
+        for (const b of r.blocks ?? []) await port.linkBlocks(key, keys[b]);
+        const history: DemoHistory = {
+          seededAt,
+          statusChangedAt: iso(r.statusDaysAgo ?? 1),
+          updatedAt: iso(r.updatedDaysAgo ?? Math.min(r.statusDaysAgo ?? 1, 1)),
+        };
+        await port.setProperty(key, DEMO_PROPERTY, history);
+      }),
+    );
+  } catch (e) {
+    const why = e instanceof Error ? e.message : String(e);
+    throw new Error(`Demo load stopped partway (${why}). Press Load demo data again: it clears the partial set and rebuilds it.`);
+  }
 
   const people: Record<string, string | undefined> = {};
   for (const name of personaOrder) people[DEMO_PEOPLE[name].displayName] = mapped.get(DEMO_PEOPLE[name].accountId)?.displayName;
