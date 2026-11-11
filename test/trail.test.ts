@@ -55,6 +55,8 @@ describe('receipt trail and undo', () => {
     expect(v.heard).toBe('I finished MP-12');
     expect(v.readback).toBe(p.speech);
     expect(v.lines[0].text).toBe('MP-12 passe à Terminé');
+    expect(typeof v.planMs).toBe('number');
+    expect(typeof v.writeMs).toBe('number');
   });
 
   it('undo deletes the follow-up a risk fix created, and its link with it', async () => {

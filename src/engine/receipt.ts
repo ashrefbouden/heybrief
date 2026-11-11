@@ -172,6 +172,9 @@ export interface ReceiptView {
   /** What HeyBrief proposed and the person approved. */
   readback?: string;
   lines: ReceiptLine[];
+  /** Measured timings, when recorded. */
+  planMs?: number;
+  writeMs?: number;
   allOk: boolean;
   canUndo: boolean;
   undone: boolean;
@@ -191,6 +194,8 @@ export function viewReceipt(r: Receipt, undone = false, lang: Lang = 'en'): Rece
     heard: r.heard,
     readback: r.readback,
     lines,
+    planMs: r.planMs,
+    writeMs: r.writeMs,
     allOk: r.results.every((x) => x.ok),
     canUndo: !undone && r.results.some((x) => x.ok && x.undo),
     undone,

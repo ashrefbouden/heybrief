@@ -92,7 +92,8 @@ export async function executeOps(
           results.push({
             op,
             ok: true,
-            undo: before?.assignee ? { type: 'assign', issueKey: op.issueKey, accountId: before.assignee.accountId } : undefined,
+            // Undo puts the previous owner back, or leaves it unassigned again.
+            undo: before ? { type: 'assign', issueKey: op.issueKey, accountId: before.assignee?.accountId ?? null } : undefined,
           });
           break;
         }

@@ -1099,6 +1099,13 @@ button:disabled {
   font-style: italic;
   color: var(--text-2);
 }
+.hb-rec-measure {
+  margin: 0 0 6px;
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
 .hb-rec-lines {
   list-style: none;
   margin: 0;

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { HeyBrief } from '../src/engine/heybrief';
 import { affected, outsideAlerts, parseStatuspage, VENDOR_IDS, type VendorIncident } from '../src/engine/outside/incidents';
 import { demo, ME, NOW } from './helpers';
+import { speakAlert } from '../src/engine/alert/speak';
 
 const GH: VendorIncident = {
   vendor: 'github',
@@ -93,12 +94,16 @@ describe('Outside incidents', () => {
     expect((await broken.hb.alerts(ME.accountId, { ask: true })).speech).toBeTruthy();
   });
 
-  it('a keyword-only match says verify', () => {
+  it('generic words do not match; a distinctive component name does, labelled verify', () => {
     const { issues } = demo();
-    const vercel: VendorIncident = { ...GH, vendor: 'vercel', name: 'Build delays' };
-    issues.find((i) => i.key === 'MP-38')!.labels = [];
-    issues.find((i) => i.key === 'MP-38')!.summary = 'Fix preview deployment';
+    const mp38 = issues.find((i) => i.key === 'MP-38')!;
+    mp38.labels = [];
+    mp38.summary = 'Fix preview deployment';
+    const vercel: VendorIncident = { ...GH, vendor: 'vercel', name: 'Build delays', components: ['API', 'Build Pipeline'] };
+    expect(outsideAlerts([vercel], issues, NOW, ME.accountId)).toEqual([]);
+    mp38.summary = 'Speed up the build pipeline cache';
     const [a] = outsideAlerts([vercel], issues, NOW, ME.accountId);
-    expect(a.confidence).toBe('keyword');
+    expect(a).toMatchObject({ issueKey: 'MP-38', confidence: 'keyword' });
+    expect(speakAlert(a, 'en')).toContain('verify');
   });
 });

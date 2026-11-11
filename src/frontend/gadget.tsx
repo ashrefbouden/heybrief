@@ -29,6 +29,7 @@ interface ReceiptView {
   kind: 'talkback' | 'risk-fix' | 'alert';
   heard: string;
   readback?: string;
+  writeMs?: number;
   lines: Line[];
   allOk: boolean;
   canUndo: boolean;
@@ -84,6 +85,11 @@ function Receipt({ r, onUndo, busy, s, lang }: { r: ReceiptView; onUndo: () => v
         <Text size="small" color="color.text.subtle">
           <Text as="strong">{s.youSaid}:</Text> “{r.heard}”
         </Text>
+        {r.writeMs !== undefined && (
+          <Text size="small" color="color.text.success">
+            {s.savedIn(r.lines.filter((l) => l.ok).length, (r.writeMs / 1000).toFixed(1))}
+          </Text>
+        )}
         <Stack space="space.050">
           {r.lines.map((l, i) => (
             <Inline key={i} space="space.075" alignBlock="center">

@@ -827,6 +827,11 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
       heard.dir = 'auto';
       said.append(heard);
       box.append(said);
+      if (r.writeMs !== undefined) {
+        const sec = (ms?: number) => (ms === undefined ? undefined : (ms / 1000).toFixed(1));
+        const n = r.lines.filter((l) => l.ok).length;
+        box.append(el('p', 'hb-rec-measure', t.measured(n, r.kind === 'talkback', sec(r.planMs), sec(r.writeMs))));
+      }
       const ul = el('ul', 'hb-rec-lines');
       for (const l of r.lines) {
         const li = el('li', l.ok ? '' : 'is-fail');

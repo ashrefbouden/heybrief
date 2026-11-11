@@ -69,7 +69,7 @@ export type Op =
   | { type: 'unlink-blocks'; blockerKey: string; blockedKey: string }
   /** Undo of create-issue: only ever targets an issue HeyBrief created. */
   | { type: 'delete-issue'; issueKey: string }
-  | { type: 'assign'; issueKey: string; accountId: string }
+  | { type: 'assign'; issueKey: string; accountId: string | null }
   | { type: 'notify'; issueKey: string; accountIds: string[]; subject: string; body: string }
   | {
       type: 'create-issue';
@@ -99,6 +99,10 @@ export interface Receipt {
   /** What HeyBrief read back before the yes. Optional: receipts stored before Nov 11 lack it. */
   readback?: string;
   results: OpResult[];
+  /** Measured: from the sentence arriving to the proposal being ready. */
+  planMs?: number;
+  /** Measured: from the yes to the last write finishing. */
+  writeMs?: number;
 }
 
 export type PendingKind = 'talkback' | 'risk-fix' | 'alert';
@@ -112,4 +116,5 @@ export interface PendingAction {
   heard: string;
   readback: string;
   expiresAt: string;
+  planMs?: number;
 }

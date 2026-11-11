@@ -90,7 +90,7 @@ export function classifyReply(text: string): Reply {
 
 export async function propose(
   deps: Pick<Deps, 'store' | 'clock' | 'ids'>,
-  p: { accountId: string; kind: PendingKind; ops: Op[]; heard: string; readback: string },
+  p: { accountId: string; kind: PendingKind; ops: Op[]; heard: string; readback: string; planMs?: number },
 ): Promise<PendingAction> {
   const pending: PendingAction = {
     id: deps.ids.next(),
@@ -99,6 +99,7 @@ export async function propose(
     ops: p.ops,
     heard: p.heard.slice(0, 1000),
     readback: p.readback,
+    planMs: p.planMs,
     expiresAt: new Date(deps.clock.now().getTime() + CONFIRM_TTL_SECONDS * 1000).toISOString(),
   };
   await deps.store.set(pendingKey(p.accountId), pending, CONFIRM_TTL_SECONDS);
@@ -156,7 +157,9 @@ export async function resolvePending(
   await deps.store.delete(pendingKey(input.accountId));
   await deps.store.set(budgetKey, used + 1, 7200);
 
+  const started = deps.clock.now().getTime();
   const results = await executeOps(raw.ops, deps, input.accountId);
+  const writeMs = Math.max(0, deps.clock.now().getTime() - started);
   const receipt: Receipt = {
     id: raw.id,
     accountId: input.accountId,
@@ -165,6 +168,8 @@ export async function resolvePending(
     heard: raw.heard,
     readback: raw.readback,
     results,
+    planMs: raw.planMs,
+    writeMs,
   };
   await saveReceipt(deps, receipt);
 

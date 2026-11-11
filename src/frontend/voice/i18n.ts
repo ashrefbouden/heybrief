@@ -75,6 +75,7 @@ export interface Strings {
   receiptEmpty: string;
   youSaid: string;
   proposed: string;
+  measured: (changes: number, fromSentence: boolean, planS?: string, writeS?: string) => string;
   undo: string;
   undone: string;
   undoOk: string;
@@ -155,6 +156,10 @@ const en: Strings = {
   receiptEmpty: 'Every change you approve shows up here, with what you said and an undo button.',
   youSaid: 'You said',
   proposed: 'HeyBrief proposed',
+  measured: (n, s, p, w) =>
+    [`${n} ${n === 1 ? 'change' : 'changes'}${s ? ' from 1 sentence' : ''}`, p && `understood in ${p} s`, w && `saved in ${w} s`]
+      .filter(Boolean)
+      .join(' · '),
   undo: 'Undo',
   undone: 'Undone',
   undoOk: 'Undone. Jira is back to how it was.',
@@ -245,6 +250,10 @@ const fr: Strings = {
   receiptEmpty: 'Chaque changement que vous approuvez apparaît ici, avec ce que vous avez dit et un bouton Annuler.',
   youSaid: 'Vous avez dit',
   proposed: 'HeyBrief a proposé',
+  measured: (n, s, p, w) =>
+    [`${n} changement${n > 1 ? 's' : ''}${s ? ' en 1 phrase' : ''}`, p && `compris en ${p} s`, w && `enregistré en ${w} s`]
+      .filter(Boolean)
+      .join(' · '),
   undo: 'Annuler',
   undone: 'Annulé',
   undoOk: 'Annulé. Jira est revenu à l’état d’avant.',
@@ -335,6 +344,8 @@ const ar: Strings = {
   receiptEmpty: 'كل تغيير توافق عليه يظهر هنا، مع ما قلته وزر للتراجع.',
   youSaid: 'قلتَ',
   proposed: 'اقترح HeyBrief',
+  measured: (n, s, p, w) =>
+    [`${n} تغييرات${s ? ' من جملة واحدة' : ''}`, p && `فُهمت في ${p} ث`, w && `حُفظت في ${w} ث`].filter(Boolean).join(' · '),
   undo: 'تراجع',
   undone: 'تم التراجع',
   undoOk: 'تم التراجع. عاد Jira كما كان.',

@@ -53,6 +53,7 @@ describe('Heads-up detection', () => {
     expect(a[0].action.kind).toBe('take');
     expect(a[0].action.ops).toEqual([
       { type: 'assign', issueKey: 'X-1', accountId: ME.accountId },
+      { type: 'transition', issueKey: 'X-1', toCategory: 'inprogress' },
       expect.objectContaining({ type: 'comment', issueKey: 'X-1', mentions: [SAMI.accountId] }),
     ]);
   });
@@ -153,7 +154,7 @@ describe('Heads-up speech', () => {
   it('says what, when, how sure, and asks one question, in each language, ≤ 60 words', () => {
     const en = speakAlert(alert, 'en');
     expect(en).toBe(
-      "Urgent heads-up: possible incident. X-1, Checkout API down, opened 12 minutes ago, nobody on it. Confirmed from Jira. Want me to assign X-1 to you and tell the team you're on it?",
+      "Urgent heads-up: possible incident. X-1, Checkout API down, opened 12 minutes ago, nobody on it. Confirmed from Jira. Want me to assign X-1 to you, start it, and tell the team you're on it?",
     );
     for (const lang of ['en', 'fr', 'ar'] as const) {
       const s = speakAlert(alert, lang, 2);
@@ -252,5 +253,52 @@ describe('Heads-up in the engine', () => {
     expect(a.speech).toContain('1 more after this');
     await hb.route(ME.accountId, 'no');
     expect((await hb.alerts(ME.accountId)).speech).toMatch(/security issue/);
+  });
+});
+
+describe('Heads-up hero loop: take, receipt, undo', () => {
+  it('take assigns, starts and comments; undo unassigns and restores the status', async () => {
+    const { makeDeps } = await import('../src/engine/testing/fakes');
+    const { HeyBrief } = await import('../src/engine/heybrief');
+    const { listReceiptViews, undoReceipt } = await import('../src/engine/confirm');
+    const inc = issue({
+      key: 'X-1',
+      summary: 'Checkout API down',
+      priority: 'Highest',
+      issueType: 'Incident',
+      createdAt: new Date(NOW.getTime() - 5 * 60_000).toISOString(),
+      reporter: SAMI,
+    });
+    const { deps, jira } = makeDeps([inc], NOW, [ME, SAMI]);
+    const hb = new HeyBrief(deps);
+    const a = await hb.alerts(ME.accountId, {});
+    expect(a.changes).toEqual(['X-1 assigned to you', 'X-1 moved to In Progress']);
+    await hb.confirm(ME.accountId, 'yes', a.pendingId);
+    expect(jira.issues.get('X-1')).toMatchObject({ statusCategory: 'inprogress', assignee: { accountId: ME.accountId } });
+    const [r] = await listReceiptViews(deps, ME.accountId);
+    expect(r.kind).toBe('alert');
+    const out = await undoReceipt(deps, ME.accountId, r.id);
+    expect(out.every((x) => x.ok)).toBe(true);
+    expect(jira.issues.get('X-1')!.assignee).toBeUndefined();
+    expect(jira.issues.get('X-1')!.statusCategory).toBe('todo');
+  });
+
+  it('ping leaves only a comment, so there is nothing to undo', async () => {
+    const { makeDeps } = await import('../src/engine/testing/fakes');
+    const { HeyBrief } = await import('../src/engine/heybrief');
+    const { listReceiptViews } = await import('../src/engine/confirm');
+    const inc = issue({
+      key: 'X-2',
+      summary: 'Checkout API down',
+      priority: 'Highest',
+      issueType: 'Incident',
+      createdAt: NOW.toISOString(),
+      assignee: SAMI,
+    });
+    const { deps } = makeDeps([inc], NOW, [ME, SAMI]);
+    const hb = new HeyBrief(deps);
+    const a = await hb.alerts(ME.accountId, {});
+    await hb.confirm(ME.accountId, 'yes', a.pendingId);
+    expect((await listReceiptViews(deps, ME.accountId))[0].canUndo).toBe(false);
   });
 });

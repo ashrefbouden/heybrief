@@ -54,6 +54,7 @@ export class HeyBrief {
   ) {}
 
   async talkback(accountId: string, text: string, langHint?: string): Promise<Answer> {
+    const t0 = this.deps.clock.now().getTime();
     const parsed = parseUpdate(text, { lang: langHint, projectKeys: this.opts.projectKeys });
     const plan = await planTalkback(parsed, { jira: this.deps.jira, accountId, standupPage: this.opts.standupPage });
     if (!plan.changeCount) return { speech: plan.readback, lang: parsed.lang, expectReply: false };
@@ -63,6 +64,7 @@ export class HeyBrief {
       ops: plan.ops,
       heard: text,
       readback: plan.readback,
+      planMs: Math.max(0, this.deps.clock.now().getTime() - t0),
     });
     return {
       speech: plan.readback,

@@ -134,12 +134,13 @@ function takeOrPing(i: Issue, me: string, why: string): AlertAction {
     return {
       kind: 'take',
       say: {
-        en: `assign ${i.key} to you and tell the team you're on it`,
-        fr: `vous assigne ${i.key} et prévienne l'équipe que vous êtes dessus`,
-        ar: `أسند ${i.key} إليك وأبلغ الفريق أنك تتولاها`,
+        en: `assign ${i.key} to you, start it, and tell the team you're on it`,
+        fr: `vous assigne ${i.key}, le passe en cours et prévienne l'équipe`,
+        ar: `أسند ${i.key} إليك وأبدأها وأبلغ الفريق أنك تتولاها`,
       },
       ops: [
         { type: 'assign', issueKey: i.key, accountId: me },
+        ...(i.statusCategory === 'todo' ? [{ type: 'transition' as const, issueKey: i.key, toCategory: 'inprogress' as const }] : []),
         {
           type: 'comment',
           issueKey: i.key,

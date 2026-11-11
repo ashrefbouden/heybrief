@@ -13,17 +13,20 @@ export interface Vendor {
   name: string;
   /** Atlassian Statuspage host. The Forge adapter may fetch only these hosts (see manifest). */
   host: string;
-  /** Words in an issue summary or labels that tie it to this vendor. The vendor name alone is a strong tie. */
+  /**
+   * Names that tie an issue to this vendor, in its summary or labels. Deliberately only the vendor's
+   * own names: generic words (ci, deploy, dns) matched unrelated work and would cry wolf.
+   */
   words: string[];
 }
 
 export const VENDORS: Record<VendorId, Vendor> = {
-  github: { name: 'GitHub', host: 'www.githubstatus.com', words: ['github', 'gh actions', 'pull requests?', 'ci', 'workflows?'] },
-  bitbucket: { name: 'Bitbucket', host: 'bitbucket.status.atlassian.com', words: ['bitbucket', 'pipelines?'] },
-  cloudflare: { name: 'Cloudflare', host: 'www.cloudflarestatus.com', words: ['cloudflare', 'cdn', 'dns', 'waf'] },
-  npm: { name: 'npm', host: 'status.npmjs.org', words: ['npm', 'packages?', 'dependenc(?:y|ies)'] },
-  vercel: { name: 'Vercel', host: 'www.vercel-status.com', words: ['vercel', 'deploy(?:ment|s)?', 'preview'] },
-  datadog: { name: 'Datadog', host: 'status.datadoghq.com', words: ['datadog', 'monitoring', 'metrics'] },
+  github: { name: 'GitHub', host: 'www.githubstatus.com', words: ['github', 'github actions', 'gh actions'] },
+  bitbucket: { name: 'Bitbucket', host: 'bitbucket.status.atlassian.com', words: ['bitbucket', 'bitbucket pipelines'] },
+  cloudflare: { name: 'Cloudflare', host: 'www.cloudflarestatus.com', words: ['cloudflare'] },
+  npm: { name: 'npm', host: 'status.npmjs.org', words: ['npm', 'npmjs'] },
+  vercel: { name: 'Vercel', host: 'www.vercel-status.com', words: ['vercel'] },
+  datadog: { name: 'Datadog', host: 'status.datadoghq.com', words: ['datadog'] },
 };
 export const VENDOR_IDS = Object.keys(VENDORS) as VendorId[];
 
@@ -55,20 +58,28 @@ const MAX_AFFECTED = 3;
 
 const AUDIT = (accountId: string) => `(HeyBrief outside incident, approved by voice by [~accountid:${accountId}])`;
 
-const nameRe = (v: Vendor) => words([v.name.toLowerCase()]);
 
-/** Open issues an incident touches. Strong: the vendor is named. Weak: only topical words match. */
+/**
+ * Open issues an incident touches. Strong: the issue names the vendor. Weak: the issue names one of the
+ * incident's own components ("GitHub Actions" -> "Actions"), which is spoken with "please verify".
+ */
 export function affected(incident: VendorIncident, issues: Issue[]): { keys: string[]; strong: boolean } {
   const v = VENDORS[incident.vendor];
-  const strongRe = nameRe(v);
-  // Topical words only. Component names ("API Requests", "Webhooks") are too generic to tie to an issue.
-  const anyRe = words(v.words);
+  const strongRe = words(v.words);
+  // Only distinctive component names: a single generic word ("API", "Webhooks") would match everything.
+  const comps = incident.components
+    .map((c) => c.trim().toLowerCase())
+    .filter((c) => c.length >= 6 && !GENERIC_COMPONENTS.has(c))
+    .map((c) => c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const weakRe = comps.length ? words(comps) : null;
   const text = (i: Issue) => `${i.summary} ${(i.labels ?? []).join(' ')}`.toLowerCase();
   const strong = issues.filter((i) => isOpen(i) && strongRe.test(text(i)));
-  const weak = issues.filter((i) => isOpen(i) && !strong.includes(i) && anyRe.test(text(i)));
+  const weak = weakRe ? issues.filter((i) => isOpen(i) && !strong.includes(i) && weakRe.test(text(i))) : [];
   const all = [...strong, ...weak].slice(0, MAX_AFFECTED);
   return { keys: all.map((i) => i.key), strong: strong.length > 0 };
 }
+
+const GENERIC_COMPONENTS = new Set(['api requests', 'webhooks', 'website', 'dashboard', 'notifications', 'support', 'billing', 'api']);
 
 const minutesSince = (iso: string, now: Date) => Math.max(0, Math.floor((now.getTime() - Date.parse(iso)) / 60_000));
 
