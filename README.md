@@ -1,6 +1,6 @@
 # HeyBrief
 
-**Talk to Jira, and Jira changes.** A voice-first Forge app: say your status out loud and Jira updates itself after your yes; Risk Radar proposes the fix, not just the alarm. Built for Atlassian Codegeist 2026 (Business Teams track, Best app with Atlassian MCP).
+**Talk to Jira, and Jira changes.** A voice-first Forge app: say your status out loud and Jira updates itself after your yes; Risk Radar proposes the fix, not just the alarm. Built for Atlassian Codegeist 2026 (Apps for Software Teams, bonus: Best app with Atlassian MCP).
 
 One engine, four ways in, all running as the signed-in user so Jira enforces permissions:
 
