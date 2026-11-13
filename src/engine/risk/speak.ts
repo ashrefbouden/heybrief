@@ -78,18 +78,40 @@ export function speakRadar(risks: Risk[], lang: Lang): string {
   return `${capWords(head, 60 - ask.split(' ').length)} ${ask}`;
 }
 
-/** Spoken answer to "why?": the issues and the rule that fired, nothing invented. */
+/** The threshold behind each rule, in words, so "why?" names the rule without reading a log line. */
+function ruleWords(s: Signal, lang: Lang): string {
+  const r = {
+    'blocked-too-long': { en: 'blocked 3 days or more', fr: 'bloqué 3 jours ou plus', ar: 'محظور 3 أيام أو أكثر' },
+    'blocking-chain': { en: 'a blocker holding up open work', fr: 'un blocage qui retient du travail ouvert', ar: 'عائق يوقف عملا مفتوحا' },
+    overdue: { en: 'past its due date', fr: 'échéance dépassée', ar: 'تجاوز موعده' },
+    'due-soon-not-started': { en: 'due soon and not started', fr: 'échéance proche, pas commencé', ar: 'موعده قريب ولم يبدأ' },
+    'owner-overload': { en: 'one person holding too much open work', fr: 'une personne surchargée', ar: 'شخص واحد يحمل عملا كثيرا' },
+    stale: { en: 'in progress with no update for a week', fr: 'en cours sans mise à jour depuis une semaine', ar: 'قيد التنفيذ دون تحديث منذ أسبوع' },
+  } as const;
+  return r[s.id][lang];
+}
+
+/** Spoken answer to "why?": the facts, the rules that fired and the issues that prove them, nothing invented. */
 export function explainRisk(risk: Risk, lang: Lang): string {
-  const lead =
-    lang === 'fr'
-      ? `${risk.rootKey}, score ${risk.score}.`
-      : lang === 'ar'
-        ? `${risk.rootKey}، الدرجة ${risk.score}.`
-        : `${risk.rootKey}, score ${risk.score}.`;
-  const rules = risk.signals.map(
-    (s) =>
-      `${s.rule} (${s.label === 'confirmed' ? T[lang].confirmed : lang === 'fr' ? 'estimé' : lang === 'ar' ? 'تقدير' : 'estimated'})`,
+  const facts = joinList(
+    risk.signals.map((s) => signalPhrase(s, lang, risk.rootKey)),
+    lang,
   );
-  const src = lang === 'fr' ? 'Sources' : lang === 'ar' ? 'المصادر' : 'Sources';
-  return capWords(`${lead} ${rules.join('; ')}. ${src}: ${risk.sources.join(', ')}.`);
+  const rules = joinList(
+    risk.signals.map((s) => ruleWords(s, lang)),
+    lang,
+  );
+  const confirmed = risk.label === 'confirmed';
+  const sources = risk.sources.join(', ');
+  if (lang === 'fr')
+    return capWords(
+      `${risk.rootKey} ${facts}. Règles déclenchées : ${rules}. ${confirmed ? 'Confirmé par Jira' : 'C’est une estimation'}. Preuves : ${sources}.`,
+    );
+  if (lang === 'ar')
+    return capWords(
+      `${risk.rootKey} ${facts}. القواعد: ${rules}. ${confirmed ? 'مؤكد من Jira' : 'هذا تقدير'}. الأدلة: ${sources}.`,
+    );
+  return capWords(
+    `${risk.rootKey} ${facts}. Rules that fired: ${rules}. ${confirmed ? 'Confirmed from Jira' : 'That is an estimate'}. Evidence: ${sources}.`,
+  );
 }
