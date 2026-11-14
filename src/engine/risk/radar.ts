@@ -199,8 +199,23 @@ export function findOverloads(open: Issue[], cfg: RadarConfig): Overload[] {
 
 const PRIORITY_RANK: Record<string, number> = { Highest: 0, High: 1, Medium: 2, Low: 3, Lowest: 4 };
 
-function firstName(p?: Person): string {
-  return p?.displayName.split(' ')[0] ?? 'the owner';
+function firstName(p?: Person): string | undefined {
+  return p?.displayName.split(' ')[0];
+}
+
+/** Who to name when an issue has no assignee: never leave an English placeholder in French or Arabic speech. */
+const OWNER: Record<Lang, string> = { en: 'the owner', fr: 'le responsable', ar: 'المسؤول' };
+
+function nameIn(name: string | undefined, lang: Lang): string {
+  return name ?? OWNER[lang];
+}
+
+/** An open follow-up HeyBrief already created for this issue (same summary prefix), oldest first. */
+export function openFollowUp(root: Issue, open: Issue[]): Issue | undefined {
+  const prefix = `Unblock ${root.key}:`;
+  return open
+    .filter((i) => i.key !== root.key && i.summary.startsWith(prefix))
+    .sort((a, b) => a.key.localeCompare(b.key, 'en', { numeric: true }))[0];
 }
 
 function proposeFix(
@@ -212,17 +227,43 @@ function proposeFix(
   const audit = `(proposed by HeyBrief Risk Radar, approved by voice by [~accountid:${ctx.accountId}])`;
 
   if (ids.has('blocked-too-long') || ids.has('blocking-chain')) {
+    // Saying yes twice must not create two follow-ups: if one is still open, nudge it instead.
+    const existing = openFollowUp(root, ctx.open);
+    if (existing) {
+      return {
+        kind: 'ping-owner',
+        say: {
+          en: `nudge the open follow-up ${existing.key}`,
+          fr: `relance la tâche de suivi ${existing.key}, toujours ouverte`,
+          ar: `أذكّر بمهمة المتابعة ${existing.key} المفتوحة`,
+        },
+        ops: [
+          {
+            type: 'comment',
+            issueKey: existing.key,
+            body: `${root.key} is still blocked. Can someone pick this up today? ${audit}`,
+            mentions: existing.assignee ? [existing.assignee.accountId] : root.assignee ? [root.assignee.accountId] : [],
+          },
+        ],
+      };
+    }
     const due = addBusinessDays(ctx.now, 2);
     const owner = root.assignee;
     const dow = new Date(due + 'T00:00:00Z').getUTCDay();
     const name = firstName(owner);
     return {
       kind: 'follow-up',
-      say: {
-        en: `create a follow-up for ${name} due ${WEEKDAY.en[dow]}`,
-        fr: `crée une tâche de suivi pour ${name} pour ${WEEKDAY.fr[dow]}`,
-        ar: `أنشئ مهمة متابعة لـ ${name} يوم ${WEEKDAY.ar[dow]}`,
-      },
+      say: name
+        ? {
+            en: `create a follow-up for ${name} due ${WEEKDAY.en[dow]}`,
+            fr: `crée une tâche de suivi pour ${name} pour ${WEEKDAY.fr[dow]}`,
+            ar: `أنشئ مهمة متابعة لـ ${name} يوم ${WEEKDAY.ar[dow]}`,
+          }
+        : {
+            en: `create a follow-up task due ${WEEKDAY.en[dow]}`,
+            fr: `crée une tâche de suivi pour ${WEEKDAY.fr[dow]}`,
+            ar: `أنشئ مهمة متابعة ليوم ${WEEKDAY.ar[dow]}`,
+          },
       ops: [
         {
           type: 'create-issue',
@@ -247,7 +288,7 @@ function proposeFix(
     }
     const target = [...counts.values()].sort((a, b) => a.n - b.n || a.p.displayName.localeCompare(b.p.displayName))[0];
     if (target) {
-      const to = firstName(target.p);
+      const to = nameIn(firstName(target.p), 'en');
       return {
         kind: 'reassign',
         say: {
@@ -272,7 +313,17 @@ function proposeFix(
   const ask = ids.has('overdue') ? 'Can you share a new date?' : 'Can you share a quick status?';
   return {
     kind: 'ping-owner',
-    say: { en: `ping ${name} for a new date`, fr: `relance ${name}`, ar: `أذكّر ${name}` },
+    say: ids.has('overdue')
+      ? {
+          en: `ping ${nameIn(name, 'en')} for a new date`,
+          fr: `relance ${nameIn(name, 'fr')} pour une nouvelle date`,
+          ar: `أذكّر ${nameIn(name, 'ar')} بموعد جديد`,
+        }
+      : {
+          en: `ping ${nameIn(name, 'en')} for a quick status`,
+          fr: name ? `demande un point rapide à ${name}` : 'demande un point rapide au responsable',
+          ar: `أطلب من ${nameIn(name, 'ar')} تحديثا سريعا`,
+        },
     ops: [
       {
         type: 'comment',

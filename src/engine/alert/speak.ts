@@ -48,6 +48,12 @@ const HEAD: Record<Lang, Record<Alert['kind'], string>> = {
   },
 };
 
+const INCIDENT_CONFIRMED: Record<Lang, string> = {
+  en: 'Urgent heads-up: incident.',
+  fr: 'Alerte urgente : incident.',
+  ar: 'تنبيه عاجل: حادث.',
+};
+
 function detail(a: Alert, lang: Lang): string {
   const when = ago(a.ageMinutes, lang);
   const owner = String(a.facts.owner || '');
@@ -100,8 +106,13 @@ function sureness(a: Alert, lang: Lang): string {
 /** The interruption. ≤ 60 words; the action question is never cut. */
 export function speakAlert(a: Alert, lang: Lang, more = 0): string {
   const ask = T[lang].want(a.action.say[lang]);
-  const tail = more > 0 ? { en: ` ${more} more after this.`, fr: ` Encore ${more} après.`, ar: ` و${more} بعده.` }[lang] : '';
-  const body = `${HEAD[lang][a.kind]} ${detail(a, lang)} ${sureness(a, lang)}${tail}`;
+  const tail =
+    more > 0
+      ? { en: ` ${more} more after this.`, fr: ` Et ${more} autre${more > 1 ? 's' : ''} ensuite.`, ar: ` و${more} بعده.` }[lang]
+      : '';
+  // "possible incident" followed by "confirmed from Jira" contradicts itself: only keyword matches stay "possible".
+  const head = a.kind === 'incident' && a.confidence === 'confirmed' ? INCIDENT_CONFIRMED[lang] : HEAD[lang][a.kind];
+  const body = `${head} ${detail(a, lang)} ${sureness(a, lang)}${tail}`;
   return `${capWords(body, 60 - ask.split(' ').length)} ${ask}`;
 }
 

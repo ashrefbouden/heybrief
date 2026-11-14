@@ -140,7 +140,7 @@ describe('Risk Radar speech', () => {
     const { issues } = demo();
     const [top] = runRadar(issues, NOW, ME.accountId);
     expect(explainRisk(top, 'en')).toBe(
-      'MP-42, score 8. blocked 6 days (threshold 3) (confirmed); blocked issue blocks 2 open issues (MP-45, MP-51) (confirmed). Sources: MP-42, MP-45, MP-51.',
+      'MP-42 has been blocked 6 days and blocks MP-45 and MP-51. Rules that fired: blocked 3 days or more and a blocker holding up open work. Confirmed from Jira. Evidence: MP-42, MP-45, MP-51.',
     );
   });
   it('speaks French and Arabic', () => {
@@ -150,5 +150,47 @@ describe('Risk Radar speech', () => {
       /^3 risques cette semaine\. Le plus urgent : |^3 risques cette semaine\. Le plus urgent: /,
     );
     expect(speakRadar(r, 'ar')).toContain('محظور منذ 6 أيام');
+  });
+});
+
+describe('Risk Radar fixes on a real site (Nov 13 MCP run)', () => {
+  const root = issue({ key: 'X-1', summary: 'Renew SSO certificate', status: 'Blocked', statusChangedAt: ago(8) });
+
+  it('never puts an English placeholder into French or Arabic when nobody owns the issue', () => {
+    const [r] = runRadar([root], NOW, ME.accountId);
+    expect(r.fix.kind).toBe('follow-up');
+    expect(r.fix.say.en).toMatch(/^create a follow-up task due /);
+    expect(r.fix.say.fr).not.toContain('the owner');
+    expect(r.fix.say.ar).not.toContain('the owner');
+  });
+
+  it('does not propose a second follow-up while one is still open: it nudges the open one', () => {
+    const follow = issue({ key: 'X-9', summary: 'Unblock X-1: Renew SSO certificate', statusCategory: 'todo', status: 'To Do' });
+    const [r] = runRadar([root, follow], NOW, ME.accountId);
+    expect(r.rootKey).toBe('X-1');
+    expect(r.fix.kind).toBe('ping-owner');
+    expect(r.fix.say.en).toBe('nudge the open follow-up X-9');
+    expect(r.fix.ops).toHaveLength(1);
+    expect(r.fix.ops[0]).toMatchObject({ type: 'comment', issueKey: 'X-9' });
+  });
+
+  it('a done follow-up does not block a new one', () => {
+    const done = issue({ key: 'X-9', summary: 'Unblock X-1: Renew SSO certificate', statusCategory: 'done', status: 'Done' });
+    const [r] = runRadar([root, done], NOW, ME.accountId);
+    expect(r.fix.kind).toBe('follow-up');
+  });
+
+  it('asks for a status, not a new date, when the issue is only stale', () => {
+    const stale = issue({ key: 'X-2', updatedAt: ago(9) });
+    const [r] = runRadar([stale], NOW, ME.accountId);
+    expect(r.fix.say.en).toBe('ping the owner for a quick status');
+    expect(r.fix.say.fr).toBe('demande un point rapide au responsable');
+  });
+
+  it('explains in French and Arabic without raw rule text', () => {
+    const [r] = runRadar([root], NOW, ME.accountId);
+    expect(explainRisk(r, 'fr')).toContain('Règles déclenchées : bloqué 3 jours ou plus');
+    expect(explainRisk(r, 'ar')).toContain('مؤكد من Jira');
+    expect(explainRisk(r, 'en')).not.toContain('threshold');
   });
 });

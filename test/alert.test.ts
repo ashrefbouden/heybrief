@@ -154,7 +154,7 @@ describe('Heads-up speech', () => {
   it('says what, when, how sure, and asks one question, in each language, ≤ 60 words', () => {
     const en = speakAlert(alert, 'en');
     expect(en).toBe(
-      "Urgent heads-up: possible incident. X-1, Checkout API down, opened 12 minutes ago, nobody on it. Confirmed from Jira. Want me to assign X-1 to you, start it, and tell the team you're on it?",
+      "Urgent heads-up: incident. X-1, Checkout API down, opened 12 minutes ago, nobody on it. Confirmed from Jira. Want me to assign X-1 to you, start it, and tell the team you're on it?",
     );
     for (const lang of ['en', 'fr', 'ar'] as const) {
       const s = speakAlert(alert, lang, 2);
@@ -300,5 +300,37 @@ describe('Heads-up hero loop: take, receipt, undo', () => {
     const a = await hb.alerts(ME.accountId, {});
     await hb.confirm(ME.accountId, 'yes', a.pendingId);
     expect((await listReceiptViews(deps, ME.accountId))[0].canUndo).toBe(false);
+  });
+});
+
+describe('alert speech fixes (Nov 13 MCP run)', () => {
+  it('a confirmed incident is not called "possible", and French counts the rest naturally', async () => {
+    const { detectAlerts } = await import('../src/engine/alert/detect');
+    const { speakAlert } = await import('../src/engine/alert/speak');
+    const { ME, NOW } = await import('./helpers');
+    const [a] = detectAlerts(
+      [
+        {
+          key: 'X-7',
+          projectKey: 'X',
+          summary: 'Checkout API down',
+          issueType: 'Incident',
+          status: 'To Do',
+          statusCategory: 'todo',
+          statusChangedAt: NOW.toISOString(),
+          updatedAt: NOW.toISOString(),
+          createdAt: new Date(NOW.getTime() - 5 * 60_000).toISOString(),
+          priority: 'Highest',
+          flagged: false,
+          blocks: [],
+          blockedBy: [],
+        } as never,
+      ],
+      NOW,
+      ME.accountId,
+    );
+    const fr = speakAlert(a, 'fr', 2);
+    expect(fr).not.toContain('possible');
+    expect(fr).toContain('Et 2 autres ensuite.');
   });
 });
