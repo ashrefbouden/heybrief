@@ -79,7 +79,7 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
   const head = el('header', 'hb-head');
   const brand = el('div', 'hb-brand');
   const logo = el('span', 'hb-logo');
-  logo.innerHTML = MONO;
+  logo.append(icon('brand'));
   const brandText = el('div');
   const title = el('h1', '', 'HeyBrief');
   const tagline = el('p', 'hb-sub');
@@ -387,7 +387,7 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
     const row = el('div', `hb-msg hb-${who}`);
     if (who === 'hb') {
       const av = el('span', 'hb-avatar');
-      av.innerHTML = MONO;
+      av.append(icon('brand'));
       row.append(av);
     }
     const b = el('div', 'hb-bubble');
@@ -1022,9 +1022,6 @@ const PATHS: Record<IconName, string> = {
   comment: 'M5 5h14v10H9l-4 4V5Z',
   brand: 'M4 11.5v1M7.5 9v6M11 6.5v11M14.5 12.5l2.5 2.5L21.5 9.5',
 };
-
-/** The HB monogram from the app icon (static markup, no user data). */
-const MONO = '<svg viewBox="8 16 50 28" aria-hidden="true" class="hb-mono"><path fill="#fff" d="M11.6 20.2H17.4V27.4H27.1V20.2H32.9V27.4L27.8 32.4H17.4V40.3H11.6Z"/><path fill="#7fb4ff" d="M34.8 20.2H47.4C51.6 20.2 53.8 22.6 53.8 25.3C53.8 27.2 53 28.6 52 29.4C54.2 30.4 55.4 32.4 55.4 34.8C55.4 38 52.6 40.3 48.4 40.3H32.3L37.5 35.2H47.6C48.5 35.2 49.1 34.6 49.1 33.8C49.1 33 48.5 32.4 47.6 32.4H37.5L29.9 40.3H27.1V35.6L35.3 27.4H46.3C47.2 27.4 47.8 26.9 47.8 26.35C47.8 25.8 47.2 25.3 46.3 25.3H34.8Z"/></svg>';
 
 function icon(name: IconName): SVGSVGElement {
   const NS = 'http://www.w3.org/2000/svg';

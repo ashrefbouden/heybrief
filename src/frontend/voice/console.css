@@ -1576,51 +1576,6 @@ body {
   margin-inline: 1px;
 }
 
-/* v2.1 (Nov 14): match the HB icon. Navy + electric blue instead of blue + violet. */
-:root {
-  --grad: linear-gradient(135deg, #2b8cff 0%, #0a3dff 100%);
-  --grad-soft: linear-gradient(135deg, rgb(43 140 255 / 0.1), rgb(10 61 255 / 0.08));
-  --violet: #2b6cff;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --bg: #050914;
-    --violet: #4d8dff;
-    --grad-soft: linear-gradient(135deg, rgb(43 140 255 / 0.16), rgb(10 61 255 / 0.12));
-  }
-}
-:root[data-theme='dark'] {
-  --bg: #050914;
-  --violet: #4d8dff;
-  --grad-soft: linear-gradient(135deg, rgb(43 140 255 / 0.16), rgb(10 61 255 / 0.12));
-}
-html,
-body {
-  background:
-    radial-gradient(1100px 480px at 10% -10%, rgb(26 107 255 / 0.10), transparent 60%),
-    radial-gradient(800px 400px at 100% 100%, rgb(31 91 255 / 0.08), transparent 60%),
-    var(--bg);
-  background-attachment: fixed;
-}
-.hb-logo,
-.hb-avatar {
-  background: radial-gradient(circle at 0% 20%, #1a6bff 0%, transparent 70%), #040817 !important;
-  box-shadow: 0 6px 16px rgb(10 61 255 / 0.35);
-}
-.hb-mono {
-  width: 72%;
-  height: auto;
-  display: block;
-}
-.hb-logo .hb-mono {
-  width: 76%;
-}
-.hb-mic,
-.hb-gate .hb-btn-primary,
-.hb-me .hb-bubble {
-  box-shadow: 0 8px 22px rgb(10 61 255 / 0.32);
-}
-
 /* Conversation keeps a fixed frame on desktop: the mic never scrolls away,
    the log scrolls inside, and the gate/heads-up push the log, not the page.
    (px, not vh: Forge sizes the iframe to its content, so vh is unreliable.) */
