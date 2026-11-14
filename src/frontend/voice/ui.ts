@@ -79,7 +79,7 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
   const head = el('header', 'hb-head');
   const brand = el('div', 'hb-brand');
   const logo = el('span', 'hb-logo');
-  logo.append(icon('wave'));
+  logo.append(icon('brand'));
   const brandText = el('div');
   const title = el('h1', '', 'HeyBrief');
   const tagline = el('p', 'hb-sub');
@@ -195,7 +195,11 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
   const voiceStatus = el('span', 'hb-voice');
   voiceStatus.setAttribute('aria-live', 'polite');
   const stateWrap = el('div', 'hb-state');
-  stateWrap.append(stateDot, stateText);
+  // Live voice meter: five bars that breathe while listening, think and speak (pure CSS, follows data-state).
+  const meter = el('span', 'hb-meter');
+  meter.setAttribute('aria-hidden', 'true');
+  for (let i = 0; i < 5; i++) meter.append(el('i'));
+  stateWrap.append(meter, stateDot, stateText);
   stage.append(stateWrap, voiceStatus);
 
   const log = el('div', 'hb-log');
@@ -376,7 +380,7 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
     const row = el('div', `hb-msg hb-${who}`);
     if (who === 'hb') {
       const av = el('span', 'hb-avatar');
-      av.append(icon('wave'));
+      av.append(icon('brand'));
       row.append(av);
     }
     const b = el('div', 'hb-bubble');
@@ -971,6 +975,7 @@ function changeIcon(line: string): IconName {
 
 // App-owned, constant SVG paths: the only markup this file ever builds from strings.
 type IconName =
+  | 'brand'
   | 'wave'
   | 'mic'
   | 'send'
@@ -1008,6 +1013,7 @@ const PATHS: Record<IconName, string> = {
   doc: 'M7 3h7l5 5v13H7V3ZM14 3v5h5M10 13h6M10 17h6',
   user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4 21a8 8 0 0 1 16 0',
   comment: 'M5 5h14v10H9l-4 4V5Z',
+  brand: 'M4 11.5v1M7.5 9v6M11 6.5v11M14.5 12.5l2.5 2.5L21.5 9.5',
 };
 
 function icon(name: IconName): SVGSVGElement {
