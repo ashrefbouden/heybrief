@@ -4,6 +4,7 @@ HeyBrief runs inside Jira on Atlassian Forge. Every change waits for your yes, a
 
 ## Before you start (one time, about 1 minute)
 
+0. Install HeyBrief on your Jira Cloud site with the install link on the Devpost page. Confluence is optional: without it everything works except the standup note.
 1. Create an empty test project (any key, for example `DEMO`).
 2. Open **Apps > HeyBrief** in the Jira top bar. On a fresh site the right-hand panel offers **Load demo data**: enter the project key and click it. This creates 14 labelled issues with three built-in risks, and tells you what to say first. (The same button is in **Personal settings > HeyBrief**.)
 3. Optional: add the **HeyBrief receipt** gadget to a Jira dashboard.
@@ -20,7 +21,7 @@ Open **Apps > HeyBrief** in the Jira top bar. Allow the microphone if asked.
 | 2 | "What's at risk this week?" | Three risks. The top one is the issue blocked 6 days that holds up two others, labelled **confirmed**. Overload and due-soon risks are labelled as **estimates**. A yes card proposes one fix and lists exactly what it would change. |
 | 3 | "Why?" | The rule that fired and the issues that prove it. The proposed fix stays open. |
 | 4 | Click **Yes, do it** (or say "yes") | A follow-up issue is created and linked. The Receipt shows it, with Undo. |
-| 5 | "I finished -12, -15 is blocked on legal, I'll pick up -9 today" (with your project key) | The yes card lists six changes: one Done, one Blocked plus flag, the owner notified, one In Progress, and a Confluence standup note. Nothing has changed in Jira yet. |
+| 5 | "I finished -12, -15 is blocked on legal, I'll pick up -9 today" (with your project key) | The yes card lists the changes: one Done, one Blocked plus flag, the owner notified, one In Progress, and (only if a Confluence space is set in HeyBrief settings) a standup note. Nothing has changed in Jira yet. |
 | 6 | Say "yes" | Team pulse updates live: changed rows flash. Each issue gets an audit comment naming you. |
 | 7 | Click **Undo** on that receipt | The statuses and the flag go back. Undo on step 4's receipt deletes the follow-up it created. Audit comments stay. |
 | 8 | Switch to **FR** or **عربي** and ask "Quels risques ?" or "ما هي المخاطر؟" | The answer, the yes card and the whole page switch language. Arabic switches the page to right to left. |

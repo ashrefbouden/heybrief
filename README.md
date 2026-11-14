@@ -11,7 +11,7 @@ One engine, four ways in, all running as the signed-in user so Jira enforces per
 | Claude / any MCP client | `rovo:mcp` (same 7 actions) | `asUser()` |
 | Desk | `jira:dashboardGadget` (drive receipt + Risk Radar), `jira:personalSettingsPage` (projects, demo data) | `asUser()` |
 
-Roadmap, not deployed: a Siri / CarPlay door (web trigger + pairing token, `asApp()` with fail-closed permission checks). The code is kept and tested (`src/doors/siri.ts`, `src/engine/siri/auth.ts`, `src/engine/permissions.ts`) but not exported or in the manifest. See `docs/ROADMAP_SIRI.md`.
+Not shipped: a hands-free phone door is on the roadmap after Codegeist. Its server code is kept and tested but is not exported or in the manifest, so it is not part of this app (`docs/ROADMAP_SIRI.md`).
 
 **Try it without Jira:** `npm run build` writes `dist/heybrief-voice.html`, the same voice console running the real engine over a simulated demo project. Open it in Chrome.
 
@@ -36,8 +36,8 @@ src/doors/         rovo.ts (actions = MCP tools), resolvers.ts (voice page, gadg
 src/frontend/      UI Kit: gadget.tsx, settings.tsx
   voice/           voice console (plain DOM): ui.ts, listeners.ts (dictation / Web Speech), forge.ts, local.ts + proto.ts
 scripts/           build-voice.mjs: builds static/voice/build (Forge) and dist/heybrief-voice.html (prototype)
-test/              Vitest, 179 tests
-docs/              JUDGE_SCRIPT.md (5-minute judge test), NOV10_CHECKLIST.md (PC-back setup), ROADMAP_SIRI.md, MVP_MERGE.md
+test/              Vitest, 197 tests
+docs/              JUDGE_SCRIPT.md (5-minute judge test), ROADMAP_SIRI.md (after Codegeist, not shipped)
 ```
 
 ## Commands
@@ -51,23 +51,17 @@ forge deploy && forge install --site <your-site>.atlassian.net --product jira
 
 The manifest validates against `@forge/manifest`'s JSON schema. `forge lint` needs `forge login`.
 
-## Status (Nov 10)
+## What a fresh install needs
 
-Done and tested offline: voice page and browser prototype, talk-back parsing and planning, confirm gate, executor with undo, Risk Radar, drive brief, demo data and seeder, permission fallback, write budget (30 confirmed batches per user per hour), spoken errors and a 20 s deadline on every door, all speech in EN/FR/AR.
+Nothing beyond **Load demo data** (voice page side panel, or Personal settings > HeyBrief). Specifically:
 
-Written but **not yet run against a real site** (needs Ashref's machine and the demo site, M0 Nov 10-11). Verify these first:
+- **No Forge LLM? Still works.** Every answer has a deterministic template. The LLM only rewords it (4.5 s timeout), and a guardrail drops any rewording that invents an issue key.
+- **No Confluence? Still works.** The standup note is optional: it is skipped until a space key is set in HeyBrief settings. If Confluence is missing or the space is wrong, the receipt says so in plain words and every Jira change still lands.
+- **No permission? Said out loud.** Everything runs as the signed-in user, the executor re-checks permission before each write, and a refused change shows "you do not have permission for this in Jira", never raw HTTP text.
 
-1. Microphone inside the Forge page. Custom UI runs in an iframe; if the browser refuses speech recognition there, the page hides the mic and typing still works. Browser or OS dictation (Win+H, Fn Fn on Mac) into the text box is the fallback.
-2. Where action functions receive the caller's accountId (`accountIdOf()` in `doors/rovo.ts`).
-3. `issueLink` direction for "Blocks" (`linkBlocks()` in `forge/jira.ts`).
-4. "Flagged" field lookup and value on the demo site.
-5. `@forge/llm` `list()` response shape (model picked by name, no hard-coded id).
-6. The `board` resolver's JQL on the demo project, and text-to-speech voices on the demo machine.
-7. Whether the bundler is happy with extensionless imports (we use them; the MVP's `.ts` imports should be converted when ported).
+## Verified live (13-14 Nov 2026, demo site, through Atlassian MCP)
 
-## Merging the MVP
-
-The engine was designed around the MVP's split (types / intents / ranking / text / assistant with DataSource + Polisher). When the MVP is on GitHub: move its router, ranking and templates into `src/engine`, replace `rankMyDay` in `brief/drive.ts` with the MVP ranking, and port its ~25 reusable tests to Vitest.
+my-day, read-issue, risk-radar, explain-risk, urgent-alerts (French), voice-standup + confirm-change (a real write after "yes", and a cancel that changed nothing). 197 unit tests, all green (`npm run check`).
 
 ## Voice in English, French and Arabic
 
@@ -82,4 +76,4 @@ The language menu on the voice page sets both the microphone language (en-US, fr
 | Safari (Mac, iPhone) | Patchy | Yes | Yes, with an Arabic voice downloaded |
 | Firefox | No (typing only) | Yes, with OS voices | With OS voices |
 
-From memory of browser behaviour, to be confirmed on the demo machine. For the demo video, use Edge.
+For the demo video, use Edge.

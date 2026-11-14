@@ -147,11 +147,47 @@ export function proposalLines(ops: Op[], lang: Lang = 'en'): string[] {
   });
 }
 
+type Reason = 'permission' | 'noConfluence' | 'noSpace' | 'notFound' | 'other';
+
+const REASON: Record<Lang, Record<Reason, string>> = {
+  en: {
+    permission: 'you do not have permission for this in Jira',
+    noConfluence: 'Confluence is not available on this site',
+    noSpace: 'the Confluence space in HeyBrief settings was not found',
+    notFound: 'the issue no longer exists',
+    other: 'Jira refused the change',
+  },
+  fr: {
+    permission: "vous n'avez pas la permission dans Jira",
+    noConfluence: "Confluence n'est pas disponible sur ce site",
+    noSpace: "l'espace Confluence des réglages HeyBrief est introuvable",
+    notFound: "le ticket n'existe plus",
+    other: 'Jira a refusé le changement',
+  },
+  ar: {
+    permission: 'ليست لديك صلاحية لهذا في Jira',
+    noConfluence: 'Confluence غير متاح على هذا الموقع',
+    noSpace: 'مساحة Confluence في إعدادات HeyBrief غير موجودة',
+    notFound: 'التذكرة لم تعد موجودة',
+    other: 'رفض Jira التغيير',
+  },
+};
+
+/** Turn a raw adapter error ("Confluence 404: {...}") into a reason a person can act on. */
+export function failureReason(error: string | undefined): Reason {
+  const e = error ?? '';
+  if (/permission denied|\b40[13]\b/i.test(e)) return 'permission';
+  if (/^space .* not found/i.test(e)) return 'noSpace';
+  if (/^Confluence\b/.test(e) || /confluence/i.test(e)) return 'noConfluence';
+  if (/\b404\b/.test(e)) return 'notFound';
+  return 'other';
+}
+
 export function describeResult(r: OpResult, lang: Lang = 'en'): ReceiptLine {
   const op = r.op;
   const w = W[lang];
   let text = describeOp(op, lang, r.createdKey);
-  if (!r.ok) text += ` (${w.failed(r.error ?? 'unknown error')})`;
+  if (!r.ok) text += ` (${w.failed(REASON[lang][failureReason(r.error)])})`;
   else if (r.error) text += ` (${r.error})`;
   const issueKey =
     op.type === 'create-issue'
