@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" font-family="Segoe UI, Inter, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#44506b"/>
+    </marker>
+    <marker id="g" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#b45309"/>
+    </marker>
+  </defs>
+  <rect width="1600" height="900" fill="#f4f6fa"/>
+
+  <!-- Title -->
+  <text x="80" y="92" font-size="44" font-weight="700" fill="#0f1b3d">HeyBrief: one engine, four ways in</text>
+  <text x="80" y="134" font-size="22" fill="#44506b">Everything runs on Atlassian Forge as the signed-in user. Nothing is written until the person says yes, and every write can be undone.</text>
+
+  <!-- Doors column -->
+  <text x="80" y="200" font-size="16" font-weight="700" letter-spacing="2" fill="#6b7690">WAYS IN</text>
+  <g font-size="20">
+    <rect x="80" y="220" width="340" height="104" rx="14" fill="#fff" stroke="#e2e7ef" stroke-width="2"/>
+    <text x="104" y="262" font-weight="700" fill="#0f1b3d">Voice page in Jira</text>
+    <text x="104" y="296" font-size="17" fill="#44506b">Custom UI · mic · speech EN / FR / AR</text>
+
+    <rect x="80" y="344" width="340" height="104" rx="14" fill="#fff" stroke="#e2e7ef" stroke-width="2"/>
+    <text x="104" y="386" font-weight="700" fill="#0f1b3d">Rovo agent</text>
+    <text x="104" y="420" font-size="17" fill="#44506b">rovo:agent + 8 actions</text>
+
+    <rect x="80" y="468" width="340" height="104" rx="14" fill="#fff" stroke="#e2e7ef" stroke-width="2"/>
+    <text x="104" y="510" font-weight="700" fill="#0f1b3d">Claude / any MCP client</text>
+    <text x="104" y="544" font-size="17" fill="#44506b">rovo:mcp · same 8 actions as tools</text>
+
+    <rect x="80" y="592" width="340" height="104" rx="14" fill="#fff" stroke="#e2e7ef" stroke-width="2"/>
+    <text x="104" y="634" font-weight="700" fill="#0f1b3d">Dashboard gadget</text>
+    <text x="104" y="668" font-size="17" fill="#44506b">Risk Radar + receipts with Undo</text>
+  </g>
+
+  <!-- Arrows doors -> engine -->
+  <g stroke="#44506b" stroke-width="2.5" fill="none" marker-end="url(#a)">
+    <path d="M420 272 C470 272 470 400 528 420"/>
+    <path d="M420 396 C470 396 480 430 528 440"/>
+    <path d="M420 520 C470 520 480 470 528 460"/>
+    <path d="M420 644 C470 644 470 500 528 480"/>
+  </g>
+
+  <!-- Engine -->
+  <rect x="530" y="200" width="560" height="560" rx="20" fill="#0f1b3d"/>
+  <text x="560" y="246" font-size="16" font-weight="700" letter-spacing="2" fill="#9fb3dd">ENGINE · NO FORGE IMPORTS · 197 UNIT TESTS</text>
+
+  <g font-size="19">
+    <rect x="560" y="268" width="240" height="92" rx="12" fill="#18223a"/>
+    <text x="580" y="304" font-weight="700" fill="#fff">Talk-back parser</text>
+    <text x="580" y="334" font-size="16" fill="#c9d4ec">speech → intents, EN/FR/AR</text>
+
+    <rect x="820" y="268" width="240" height="92" rx="12" fill="#18223a"/>
+    <text x="840" y="304" font-weight="700" fill="#fff">Risk Radar</text>
+    <text x="840" y="334" font-size="16" fill="#c9d4ec">6 rules · one fix per risk</text>
+
+    <rect x="560" y="378" width="240" height="92" rx="12" fill="#18223a"/>
+    <text x="580" y="414" font-weight="700" fill="#fff">Planner</text>
+    <text x="580" y="444" font-size="16" fill="#c9d4ec">intents → Jira ops + read-back</text>
+
+    <rect x="820" y="378" width="240" height="92" rx="12" fill="#18223a"/>
+    <text x="840" y="414" font-weight="700" fill="#fff">Brief + Heads-up</text>
+    <text x="840" y="444" font-size="16" fill="#c9d4ec">ranked day · P1 alerts</text>
+  </g>
+
+  <!-- Confirm gate -->
+  <rect x="560" y="492" width="500" height="112" rx="14" fill="#fff7ec" stroke="#f3c58a" stroke-width="3"/>
+  <text x="584" y="532" font-size="22" font-weight="700" fill="#b45309">Confirm gate</text>
+  <text x="584" y="564" font-size="17" fill="#7a3f06">Only a spoken or clicked “yes” runs the plan.</text>
+  <text x="584" y="590" font-size="17" fill="#7a3f06">Anything else cancels · single use · expires in 2 min</text>
+
+  <g font-size="19">
+    <rect x="560" y="626" width="240" height="108" rx="12" fill="#18223a"/>
+    <text x="580" y="662" font-weight="700" fill="#fff">Executor</text>
+    <text x="580" y="690" font-size="16" fill="#c9d4ec">re-checks permission</text>
+    <text x="580" y="714" font-size="16" fill="#c9d4ec">records how to undo</text>
+
+    <rect x="820" y="626" width="240" height="108" rx="12" fill="#18223a"/>
+    <text x="840" y="662" font-weight="700" fill="#fff">Phraser (optional)</text>
+    <text x="840" y="690" font-size="16" fill="#c9d4ec">Forge LLM rewords only;</text>
+    <text x="840" y="714" font-size="16" fill="#c9d4ec">template if off or slow</text>
+  </g>
+  <path d="M810 606 L810 624" stroke="#b45309" stroke-width="3" marker-end="url(#g)"/>
+
+  <!-- Arrows engine -> Atlassian -->
+  <g stroke="#44506b" stroke-width="2.5" fill="none" marker-end="url(#a)">
+    <path d="M1090 330 L1178 330"/>
+    <path d="M1090 520 L1178 520"/>
+    <path d="M1090 690 L1178 690"/>
+  </g>
+  <text x="1100" y="316" font-size="15" fill="#6b7690">asUser()</text>
+
+  <!-- Atlassian column -->
+  <text x="1180" y="200" font-size="16" font-weight="700" letter-spacing="2" fill="#6b7690">ATLASSIAN CLOUD</text>
+  <g font-size="20">
+    <rect x="1180" y="220" width="340" height="200" rx="14" fill="#fff" stroke="#1d5fe0" stroke-width="2.5"/>
+    <text x="1204" y="262" font-weight="700" fill="#0f1b3d">Jira (REST v3)</text>
+    <text x="1204" y="298" font-size="17" fill="#44506b">transitions · flags · links</text>
+    <text x="1204" y="326" font-size="17" fill="#44506b">assign · follow-up issues</text>
+    <text x="1204" y="354" font-size="17" fill="#44506b">audit comment on every change</text>
+    <text x="1204" y="390" font-size="17" fill="#1d5fe0" font-weight="600">Jira enforces the user's permissions</text>
+
+    <rect x="1180" y="440" width="340" height="130" rx="14" fill="#fff" stroke="#e2e7ef" stroke-width="2"/>
+    <text x="1204" y="482" font-weight="700" fill="#0f1b3d">Confluence (optional)</text>
+    <text x="1204" y="516" font-size="17" fill="#44506b">daily standup note</text>
+    <text x="1204" y="544" font-size="17" fill="#44506b">skipped cleanly if absent</text>
+
+    <rect x="1180" y="590" width="340" height="130" rx="14" fill="#fff" stroke="#e2e7ef" stroke-width="2"/>
+    <text x="1204" y="632" font-weight="700" fill="#0f1b3d">Forge storage + LLM</text>
+    <text x="1204" y="666" font-size="17" fill="#44506b">pending yes · receipts · undo</text>
+    <text x="1204" y="694" font-size="17" fill="#44506b">no server of our own</text>
+  </g>
+
+  <!-- Footer flow -->
+  <rect x="80" y="790" width="1440" height="70" rx="14" fill="#e8f0ff"/>
+  <text x="110" y="834" font-size="22" fill="#0f1b3d"><tspan font-weight="700">The loop: </tspan>you talk → HeyBrief reads back what it will change → you say “yes” → Jira changes → receipt with Undo</text>
+</svg>
