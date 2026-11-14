@@ -738,7 +738,8 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
       const chain = el('div', 'hb-chain' + (changed.has(s.key) ? ' is-changed' : ''));
       chain.append(row(s, changed.has(s.key)));
       const waiting = s.blocks.map((k) => byKey.get(k)).filter((x): x is BoardIssue => !!x && x.statusCategory !== 'done');
-      const unblockers = s.blockedBy.map((k) => byKey.get(k)).filter((x): x is BoardIssue => !!x);
+      // Only what still blocks it: finished blockers are history, not news.
+      const unblockers = s.blockedBy.map((k) => byKey.get(k)).filter((x): x is BoardIssue => !!x && x.statusCategory !== 'done');
       if (unblockers.length) {
         const u = el('div', 'hb-chain-sub');
         u.append(el('span', 'hb-chain-label', t.unblockedBy));
