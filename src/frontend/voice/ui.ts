@@ -205,6 +205,8 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
   const log = el('div', 'hb-log');
   log.setAttribute('role', 'log');
   log.setAttribute('aria-live', 'polite');
+  // When the gate or a heads-up takes room, keep the newest message in view.
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => (log.scrollTop = log.scrollHeight)).observe(log);
 
   // Urgent heads-up banner. Sound and speech are best effort (browsers may block them).
   const alertBar = el('div', 'hb-alert');
@@ -377,6 +379,11 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
 
   // ---------- conversation ----------
   function say(who: Who, text: string, l?: Lang) {
+    // Anything after the greeting (an answer, a heads-up, a note) replaces the starter sentences.
+    if (starter) {
+      starter.remove();
+      starter = null;
+    }
     const row = el('div', `hb-msg hb-${who}`);
     if (who === 'hb') {
       const av = el('span', 'hb-avatar');

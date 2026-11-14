@@ -1620,3 +1620,27 @@ body {
 .hb-me .hb-bubble {
   box-shadow: 0 8px 22px rgb(10 61 255 / 0.32);
 }
+
+/* Conversation keeps a fixed frame on desktop: the mic never scrolls away,
+   the log scrolls inside, and the gate/heads-up push the log, not the page.
+   (px, not vh: Forge sizes the iframe to its content, so vh is unreliable.) */
+@media (min-width: 921px) {
+  .hb-convo {
+    height: 740px;
+    min-height: 0;
+  }
+  .hb-log {
+    min-height: 0;
+    max-height: none;
+  }
+  .hb-alert,
+  .hb-gate,
+  .hb-dock,
+  .hb-stage {
+    flex: none;
+  }
+  .hb-alert,
+  .hb-gate {
+    margin-inline: 14px;
+  }
+}
