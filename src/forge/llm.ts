@@ -45,7 +45,7 @@ export const forgePhraser: Phraser = {
     const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), TIMEOUT_MS));
     try {
       const out = await Promise.race([call, timeout]);
-      return guardPhrase(out, extractKeys(facts + ' ' + draft), maxWords);
+      return guardPhrase(out, extractKeys(facts + ' ' + draft), maxWords, extractKeys(draft));
     } catch {
       return null;
     }

@@ -41,3 +41,15 @@ describe('LLM phrasing of the brief', () => {
     expect((await boom.hb.brief(ME.accountId)).speech).toBe(plain.speech);
   });
 });
+
+import { guardPhrase as guardKeys } from '../src/engine/speak';
+
+describe('LLM rewording keeps the evidence', () => {
+  const allowed = new Set(['KAN-25', 'KAN-32', 'KAN-26']);
+  it('rejects a rewording that drops an issue key the draft named', () => {
+    expect(guardKeys('The Checkout API is down. KAN-26 is the top risk.', allowed, 60, new Set(['KAN-32', 'KAN-26']))).toBeNull();
+  });
+  it('keeps a rewording that names every key', () => {
+    expect(guardKeys('KAN-32 is down. KAN-26 is the top risk.', allowed, 60, new Set(['KAN-32', 'KAN-26']))).toBe('KAN-32 is down. KAN-26 is the top risk.');
+  });
+});

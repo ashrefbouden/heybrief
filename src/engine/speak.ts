@@ -41,11 +41,15 @@ export function guardPhrase(
   llmText: string | null | undefined,
   allowedKeys: Set<string>,
   maxWords = MAX_SPOKEN_WORDS,
+  /** Keys the draft names: a rewording that drops one loses the evidence, so the template wins. */
+  requiredKeys: Set<string> = new Set(),
 ): string | null {
   if (!llmText) return null;
   const text = llmText.replace(/\s+/g, ' ').trim();
   if (!text || wordCount(text) > maxWords) return null;
-  for (const k of text.match(ISSUE_KEY) ?? []) if (!allowedKeys.has(k)) return null;
+  const used = new Set(text.match(ISSUE_KEY) ?? []);
+  for (const k of used) if (!allowedKeys.has(k)) return null;
+  for (const k of requiredKeys) if (!used.has(k)) return null;
   return text;
 }
 
