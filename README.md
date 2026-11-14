@@ -2,6 +2,10 @@
 
 **Talk to Jira, and Jira changes.** A voice-first Forge app: say your status out loud and Jira updates itself after your yes; Risk Radar proposes the fix, not just the alarm. Built for Atlassian Codegeist 2026 (Apps for Software Teams, bonus: Best app with Atlassian MCP).
 
+**[Install HeyBrief on your Jira Cloud site](https://developer.atlassian.com/console/install/97ce7671-faa4-49b0-9eb4-30f946f590c9?signature=AYABeGcyoEe50Nk4uImGnTKVjckAAAADAAdhd3Mta21zAEthcm46YXdzOmttczp1cy13ZXN0LTI6NzA5NTg3ODM1MjQzOmtleS83MDVlZDY3MC1mNTdjLTQxYjUtOWY5Yi1lM2YyZGNjMTQ2ZTcAuAECAQB4CxqLTo9l4lqXuFjNim1xJM%2Bp%2F3TVP9xHS2BrU5DRRucBFX86iUC7xrSrHpZxjxFcwAAAAH4wfAYJKoZIhvcNAQcGoG8wbQIBADBoBgkqhkiG9w0BBwEwHgYJYIZIAWUDBAEuMBEEDA7NF38nUecAFhuPTgIBEIA7nYWoShu%2Bn9JkLoZTkeiy%2FzB%2FqQZ62XT4AVKhckqZNzuQwxsyUwCgNHG%2FHpHF2Mvsn%2F2ROEmjIRnxuHEAB2F3cy1rbXMAS2Fybjphd3M6a21zOmV1LXdlc3QtMTo3MDk1ODc4MzUyNDM6a2V5LzQ2MzBjZTZiLTAwYzMtNGRlMi04NzdiLTYyN2UyMDYwZTVjYwC4AQICAHi9bVMAkme4qVQX1fQHo6ePw3H40A7cGfz7yrmSfBWMXgFVVHcIxPpQLw92BjCRxn5IAAAAfjB8BgkqhkiG9w0BBwagbzBtAgEAMGgGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMJL%2Bbu%2FH9%2FP8TqT2uAgEQgDsLXaVuiEtJK9ySvlccKtD0GoEpZcwejap7Dn2Ggst4xVymJK0M61BYpMbUNRkwuG4RNdt%2FEFsjKw1BwgAHYXdzLWttcwBLYXJuOmF3czprbXM6dXMtZWFzdC0xOjcwOTU4NzgzNTI0MzprZXkvNmMxMjBiYTAtNGNkNS00OTg1LWI4MmUtNDBhMDQ5NTJjYzU3ALgBAgIAeDYASx0XCjkny4iLV6vz%2BKtEGSGT6kdt0QRpkn6D%2FlVEAb7nWwg52uJltNAtTGCHb7YAAAB%2BMHwGCSqGSIb3DQEHBqBvMG0CAQAwaAYJKoZIhvcNAQcBMB4GCWCGSAFlAwQBLjARBAx87%2BdrctIpWIOeykUCARCAO1W3fANHCohDMeKERY%2BXovVt3brRDOPl3o1m6R%2FewQ3cnYKUU3NKgtoEbH5h44mor3IFhZdmwQ9%2BDUq6AgAAAAAMAAAQAAAAAAAAAAAAAAAAAN0qPjKrLeqkPKjjmKMdnnr%2F%2F%2F%2F%2FAAAAAQAAAAAAAAAAAAAAAQAAADJCHAZ7YvjR43Fatgh0zByvNPbpqRCxDFXW2Eqe01ki63kXfd%2FR%2BFzNHrYuEXAbI0XtyAyueHRtKxVxUeF9oI6MVUo%3D&product=jira)**, then open Apps > HeyBrief and click Load demo data. The 5-minute test is in [docs/JUDGE_SCRIPT.md](docs/JUDGE_SCRIPT.md).
+
+![Architecture](docs/architecture.png)
+
 One engine, four ways in, all running as the signed-in user so Jira enforces permissions:
 
 | Door | Module | Runs as |
