@@ -31,6 +31,8 @@ export interface Strings {
   // conversation
   conversation: string;
   hello: string;
+  tryTitle: string;
+  tries: string[];
   you: string;
   // gate
   gateTitle: string;
@@ -122,6 +124,8 @@ const en: Strings = {
   hintNoMic: 'Voice input is not available in this browser. Typing works the same way.',
   conversation: 'Conversation',
   hello: 'Hi. Ask for your brief, ask what is at risk, or just tell me what you did. I only change Jira after you say yes.',
+  tryTitle: 'New here? Tap one, or say it:',
+  tries: ['Brief me', 'What’s at risk this week?'],
   you: 'You',
   gateTitle: 'Waiting for your yes',
   gateNote: 'Nothing changes until you say yes. Anything else cancels.',
@@ -222,6 +226,8 @@ const fr: Strings = {
   hintNoMic: 'La saisie vocale n’est pas disponible dans ce navigateur. L’écrit fonctionne pareil.',
   conversation: 'Conversation',
   hello: 'Bonjour. Demandez votre résumé, les risques, ou dites-moi ce que vous avez fait. Je ne change Jira qu’après votre oui.',
+  tryTitle: 'Première fois ? Touchez une phrase, ou dites-la :',
+  tries: ['Mon résumé du jour', 'Quels sont les risques cette semaine ?'],
   you: 'Vous',
   gateTitle: 'En attente de votre oui',
   gateNote: 'Rien ne change avant votre oui. Toute autre réponse annule.',
@@ -322,6 +328,8 @@ const ar: Strings = {
   hintNoMic: 'الإدخال الصوتي غير متاح في هذا المتصفح. الكتابة تعمل بالطريقة نفسها.',
   conversation: 'المحادثة',
   hello: 'مرحبا. اطلب ملخصك، أو اسأل عن المخاطر، أو أخبرني بما أنجزت. لا أغيّر Jira إلا بعد أن تقول نعم.',
+  tryTitle: 'أول مرة؟ المس جملة أو قلها:',
+  tries: ['ملخصي اليوم', 'ما هي المخاطر هذا الأسبوع؟'],
   you: 'أنت',
   gateTitle: 'بانتظار موافقتك',
   gateNote: 'لا يتغير شيء قبل أن تقول نعم. أي رد آخر يلغي.',

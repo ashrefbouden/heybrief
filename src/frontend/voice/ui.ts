@@ -294,6 +294,7 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
     app.lang = l;
     document.documentElement.lang = l;
     renderStatic();
+    if (starter) showStarter();
     if (lastIssues) renderBoard(lastIssues, false);
     void backend
       .receipts(lang)
@@ -436,9 +437,28 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
     else if (state === 'thinking') setState('ready');
   }
 
+  /** First 10 seconds: the two sentences that show what HeyBrief does, big enough to tap. Gone after the first message. */
+  let starter: HTMLElement | null = null;
+  function showStarter() {
+    starter?.remove();
+    starter = el('div', 'hb-starter');
+    starter.append(el('p', 'hb-starter-title', t.tryTitle));
+    for (const phrase of t.tries) {
+      const b = el('button', 'hb-starter-btn');
+      b.type = 'button';
+      b.dir = 'auto';
+      b.textContent = `“${phrase}”`;
+      b.onclick = () => void send(phrase);
+      starter.append(b);
+    }
+    log.append(starter);
+  }
+
   async function send(raw: string) {
     const text = raw.replace(/\s+/g, ' ').trim();
     if (!text || busy) return;
+    starter?.remove();
+    starter = null;
     input.value = '';
     say('me', text);
     setBusy(true);
@@ -912,6 +932,7 @@ export function mountConsole(root: HTMLElement, backend: Backend, listener: List
   setLang(lang);
   window.speechSynthesis?.addEventListener?.('voiceschanged', renderVoiceStatus);
   say('hb', t.hello, lang);
+  showStarter();
   void refresh();
   if (alertTimer) clearInterval(alertTimer);
   if (alertKick) clearTimeout(alertKick);
