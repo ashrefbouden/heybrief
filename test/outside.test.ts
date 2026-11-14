@@ -94,16 +94,15 @@ describe('Outside incidents', () => {
     expect((await broken.hb.alerts(ME.accountId, { ask: true })).speech).toBeTruthy();
   });
 
-  it('generic words do not match; a distinctive component name does, labelled verify', () => {
+  it('only issues naming the vendor match: component names like "Build Pipeline" never do', () => {
     const { issues } = demo();
     const mp38 = issues.find((i) => i.key === 'MP-38')!;
     mp38.labels = [];
-    mp38.summary = 'Fix preview deployment';
+    mp38.summary = 'Speed up the build pipeline cache';
     const vercel: VendorIncident = { ...GH, vendor: 'vercel', name: 'Build delays', components: ['API', 'Build Pipeline'] };
     expect(outsideAlerts([vercel], issues, NOW, ME.accountId)).toEqual([]);
-    mp38.summary = 'Speed up the build pipeline cache';
+    mp38.summary = 'Fix Vercel preview deployment';
     const [a] = outsideAlerts([vercel], issues, NOW, ME.accountId);
-    expect(a).toMatchObject({ issueKey: 'MP-38', confidence: 'keyword' });
-    expect(speakAlert(a, 'en')).toContain('verify');
+    expect(a).toMatchObject({ issueKey: 'MP-38', confidence: 'confirmed' });
   });
 });

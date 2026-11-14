@@ -60,26 +60,17 @@ const AUDIT = (accountId: string) => `(HeyBrief outside incident, approved by vo
 
 
 /**
- * Open issues an incident touches. Strong: the issue names the vendor. Weak: the issue names one of the
- * incident's own components ("GitHub Actions" -> "Actions"), which is spoken with "please verify".
+ * Open issues an incident touches: only issues that name the vendor in their summary or labels.
+ * Component names ("Pull Requests", "Packages", "Pages") used to count as a weaker match, but they
+ * are ordinary words in unrelated work and made HeyBrief interrupt for nothing. One false alarm
+ * costs more trust than a missed note, so an outage must name its vendor on the issue to speak up.
  */
 export function affected(incident: VendorIncident, issues: Issue[]): { keys: string[]; strong: boolean } {
-  const v = VENDORS[incident.vendor];
-  const strongRe = words(v.words);
-  // Only distinctive component names: a single generic word ("API", "Webhooks") would match everything.
-  const comps = incident.components
-    .map((c) => c.trim().toLowerCase())
-    .filter((c) => c.length >= 6 && !GENERIC_COMPONENTS.has(c))
-    .map((c) => c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-  const weakRe = comps.length ? words(comps) : null;
+  const re = words(VENDORS[incident.vendor].words);
   const text = (i: Issue) => `${i.summary} ${(i.labels ?? []).join(' ')}`.toLowerCase();
-  const strong = issues.filter((i) => isOpen(i) && strongRe.test(text(i)));
-  const weak = weakRe ? issues.filter((i) => isOpen(i) && !strong.includes(i) && weakRe.test(text(i))) : [];
-  const all = [...strong, ...weak].slice(0, MAX_AFFECTED);
-  return { keys: all.map((i) => i.key), strong: strong.length > 0 };
+  const hits = issues.filter((i) => isOpen(i) && re.test(text(i))).slice(0, MAX_AFFECTED);
+  return { keys: hits.map((i) => i.key), strong: hits.length > 0 };
 }
-
-const GENERIC_COMPONENTS = new Set(['api requests', 'webhooks', 'website', 'dashboard', 'notifications', 'support', 'billing', 'api']);
 
 const minutesSince = (iso: string, now: Date) => Math.max(0, Math.floor((now.getTime() - Date.parse(iso)) / 60_000));
 
