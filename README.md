@@ -1,6 +1,6 @@
 # HeyBrief
 
-**Talk to Jira, and Jira changes.** A voice-first Forge app: say your status out loud and Jira updates itself after your yes; Risk Radar proposes the fix, not just the alarm. Built for Atlassian Codegeist 2026 (Apps for Software Teams, bonus: Best app with Atlassian MCP).
+**From detecting external events to understanding their internal impact and coordinating the response.** HeyBrief is a voice-first Forge app: when a P1 lands or a vendor (GitHub, Cloudflare, npm...) goes down, it names the open work and the release at risk, proposes one response plan, and runs it only after your spoken yes, with Undo. Day to day: say your status out loud and Jira updates itself after your yes; Risk Radar proposes the fix, not just the alarm. Built for Atlassian Codegeist 2026 (Apps for Software Teams, bonus: Best app with Atlassian MCP).
 
 **[Install HeyBrief on your Jira Cloud site](https://developer.atlassian.com/console/install/97ce7671-faa4-49b0-9eb4-30f946f590c9?signature=AYABeGcyoEe50Nk4uImGnTKVjckAAAADAAdhd3Mta21zAEthcm46YXdzOmttczp1cy13ZXN0LTI6NzA5NTg3ODM1MjQzOmtleS83MDVlZDY3MC1mNTdjLTQxYjUtOWY5Yi1lM2YyZGNjMTQ2ZTcAuAECAQB4CxqLTo9l4lqXuFjNim1xJM%2Bp%2F3TVP9xHS2BrU5DRRucBFX86iUC7xrSrHpZxjxFcwAAAAH4wfAYJKoZIhvcNAQcGoG8wbQIBADBoBgkqhkiG9w0BBwEwHgYJYIZIAWUDBAEuMBEEDA7NF38nUecAFhuPTgIBEIA7nYWoShu%2Bn9JkLoZTkeiy%2FzB%2FqQZ62XT4AVKhckqZNzuQwxsyUwCgNHG%2FHpHF2Mvsn%2F2ROEmjIRnxuHEAB2F3cy1rbXMAS2Fybjphd3M6a21zOmV1LXdlc3QtMTo3MDk1ODc4MzUyNDM6a2V5LzQ2MzBjZTZiLTAwYzMtNGRlMi04NzdiLTYyN2UyMDYwZTVjYwC4AQICAHi9bVMAkme4qVQX1fQHo6ePw3H40A7cGfz7yrmSfBWMXgFVVHcIxPpQLw92BjCRxn5IAAAAfjB8BgkqhkiG9w0BBwagbzBtAgEAMGgGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMJL%2Bbu%2FH9%2FP8TqT2uAgEQgDsLXaVuiEtJK9ySvlccKtD0GoEpZcwejap7Dn2Ggst4xVymJK0M61BYpMbUNRkwuG4RNdt%2FEFsjKw1BwgAHYXdzLWttcwBLYXJuOmF3czprbXM6dXMtZWFzdC0xOjcwOTU4NzgzNTI0MzprZXkvNmMxMjBiYTAtNGNkNS00OTg1LWI4MmUtNDBhMDQ5NTJjYzU3ALgBAgIAeDYASx0XCjkny4iLV6vz%2BKtEGSGT6kdt0QRpkn6D%2FlVEAb7nWwg52uJltNAtTGCHb7YAAAB%2BMHwGCSqGSIb3DQEHBqBvMG0CAQAwaAYJKoZIhvcNAQcBMB4GCWCGSAFlAwQBLjARBAx87%2BdrctIpWIOeykUCARCAO1W3fANHCohDMeKERY%2BXovVt3brRDOPl3o1m6R%2FewQ3cnYKUU3NKgtoEbH5h44mor3IFhZdmwQ9%2BDUq6AgAAAAAMAAAQAAAAAAAAAAAAAAAAAN0qPjKrLeqkPKjjmKMdnnr%2F%2F%2F%2F%2FAAAAAQAAAAAAAAAAAAAAAQAAADJCHAZ7YvjR43Fatgh0zByvNPbpqRCxDFXW2Eqe01ki63kXfd%2FR%2BFzNHrYuEXAbI0XtyAyueHRtKxVxUeF9oI6MVUo%3D&product=jira)**, then open Apps > HeyBrief and click Load demo data. The 5-minute test is in [docs/JUDGE_SCRIPT.md](docs/JUDGE_SCRIPT.md).
 
@@ -40,7 +40,7 @@ src/doors/         rovo.ts (actions = MCP tools), resolvers.ts (voice page, gadg
 src/frontend/      UI Kit: gadget.tsx, settings.tsx
   voice/           voice console (plain DOM): ui.ts, listeners.ts (dictation / Web Speech), forge.ts, local.ts + proto.ts
 scripts/           build-voice.mjs: builds static/voice/build (Forge) and dist/heybrief-voice.html (prototype)
-test/              Vitest, 197 tests
+test/              Vitest, 205 tests
 docs/              JUDGE_SCRIPT.md (5-minute judge test), ROADMAP_SIRI.md (after Codegeist, not shipped)
 ```
 
@@ -55,6 +55,10 @@ forge deploy && forge install --site <your-site>.atlassian.net --product jira
 
 The manifest validates against `@forge/manifest`'s JSON schema. `forge lint` needs `forge login`.
 
+## Response plan
+
+When Heads-up catches an unowned P1 or a vendor outage that touches open work, HeyBrief proposes one plan instead of one action. P1: assign it to you, start it, tell the team, and open a post-incident review. Vendor outage: note it on each affected issue and notify its owner, and open a tracking issue. If an issue involved is on a release (fix version) that ships within 7 days, the plan says that release is at risk. It is deterministic rules, not a prediction, and nothing runs before your yes. `src/engine/alert/plan.ts`.
+
 ## What a fresh install needs
 
 Nothing beyond **Load demo data** (voice page side panel, or Personal settings > HeyBrief). Specifically:
@@ -65,7 +69,7 @@ Nothing beyond **Load demo data** (voice page side panel, or Personal settings >
 
 ## Verified live (13-14 Nov 2026, demo site, through Atlassian MCP)
 
-my-day, read-issue, risk-radar, explain-risk, urgent-alerts (French), voice-standup + confirm-change (a real write after "yes", and a cancel that changed nothing). 197 unit tests, all green (`npm run check`).
+my-day, read-issue, risk-radar, explain-risk, urgent-alerts (French), voice-standup + confirm-change (a real write after "yes", and a cancel that changed nothing). 205 unit tests, all green (`npm run check`).
 
 ## Voice in English, French and Arabic
 

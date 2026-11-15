@@ -6,6 +6,7 @@ import { explainAlert, NO_ALERTS, SNOOZED, speakAlert } from './alert/speak';
 import { driveBrief } from './brief/drive';
 import { proposalLines } from './receipt';
 import { outsideAlerts, type OutsideConfig, type VendorIncident } from './outside/incidents';
+import { withResponsePlan } from './alert/plan';
 import { classifyReply, getPending, propose, resolvePending } from './confirm';
 import { detectLang } from './lang';
 import type { Deps } from './ports';
@@ -204,7 +205,8 @@ export class HeyBrief {
     const jira = detectAlerts(issues, now, accountId, this.opts.alerts ?? DEFAULT_ALERTS);
     // Jira's own alerts come first; outside outages only fill in when they touch open work.
     const outside = outsideAlerts(await this.outsideIncidents(), issues, now, accountId);
-    const all = [...jira, ...outside].slice(0, MAX_ALERTS_CHECKED);
+    // Incidents and outages come with one response plan (take, tell, track, release at risk), behind the same yes.
+    const all = [...jira, ...outside].slice(0, MAX_ALERTS_CHECKED).map((a) => withResponsePlan(a, issues, now, accountId));
     if (!all.length) return opts.ask ? { ...quiet, speech: NO_ALERTS[lang] } : quiet;
 
     let top: Alert | undefined;

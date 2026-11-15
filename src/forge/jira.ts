@@ -34,6 +34,7 @@ const FIELDS = [
   'labels',
   'issuetype',
   'created',
+  'fixVersions',
 ];
 const MAX_RESULTS = 50;
 
@@ -94,6 +95,9 @@ export class ForgeJira implements JiraPort {
       epicKey: f.parent?.key,
       issueType: f.issuetype?.name,
       labels: f.labels ?? [],
+      fixVersions: Array.isArray(f.fixVersions)
+        ? f.fixVersions.map((v: any) => ({ name: String(v?.name ?? ''), releaseDate: v?.releaseDate, released: !!v?.released })).filter((v: { name: string }) => v.name)
+        : undefined,
       createdAt: f.created,
     };
   }

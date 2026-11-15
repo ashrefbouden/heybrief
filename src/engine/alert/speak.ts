@@ -1,3 +1,4 @@
+import { releaseLine } from './plan';
 // Spoken heads-up: what happened, how long ago, how sure we are, and one action as a question.
 import { capWords, T } from '../speak';
 import type { Lang } from '../types';
@@ -112,7 +113,8 @@ export function speakAlert(a: Alert, lang: Lang, more = 0): string {
       : '';
   // "possible incident" followed by "confirmed from Jira" contradicts itself: only keyword matches stay "possible".
   const head = a.kind === 'incident' && a.confidence === 'confirmed' ? INCIDENT_CONFIRMED[lang] : HEAD[lang][a.kind];
-  const body = `${head} ${detail(a, lang)} ${sureness(a, lang)}${tail}`;
+  const rel = releaseLine(a, lang);
+  const body = `${head} ${detail(a, lang)}${rel ? ' ' + rel : ''} ${sureness(a, lang)}${tail}`;
   return `${capWords(body, 60 - ask.split(' ').length)} ${ask}`;
 }
 

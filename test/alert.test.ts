@@ -257,7 +257,7 @@ describe('Heads-up in the engine', () => {
 });
 
 describe('Heads-up hero loop: take, receipt, undo', () => {
-  it('take assigns, starts and comments; undo unassigns and restores the status', async () => {
+  it('response plan: take, start, comment and a post-incident review; undo reverts all of it', async () => {
     const { makeDeps } = await import('../src/engine/testing/fakes');
     const { HeyBrief } = await import('../src/engine/heybrief');
     const { listReceiptViews, undoReceipt } = await import('../src/engine/confirm');
@@ -272,8 +272,11 @@ describe('Heads-up hero loop: take, receipt, undo', () => {
     const { deps, jira } = makeDeps([inc], NOW, [ME, SAMI]);
     const hb = new HeyBrief(deps);
     const a = await hb.alerts(ME.accountId, {});
-    expect(a.changes).toEqual(['X-1 assigned to you', 'X-1 moved to In Progress']);
+    expect(a.changes).toEqual(['X-1 assigned to you', 'X-1 moved to In Progress', 'New follow-up: Post-incident review: Checkout API down']);
+    expect(a.speech).toMatch(/Want me to run the response plan: assign X-1 to you and start it, tell the team, and open a post-incident review\?$/);
     await hb.confirm(ME.accountId, 'yes', a.pendingId);
+    const review = [...jira.issues.values()].find((i) => i.summary.startsWith('Post-incident review'));
+    expect(review).toBeDefined();
     expect(jira.issues.get('X-1')).toMatchObject({ statusCategory: 'inprogress', assignee: { accountId: ME.accountId } });
     const [r] = await listReceiptViews(deps, ME.accountId);
     expect(r.kind).toBe('alert');
@@ -281,6 +284,7 @@ describe('Heads-up hero loop: take, receipt, undo', () => {
     expect(out.every((x) => x.ok)).toBe(true);
     expect(jira.issues.get('X-1')!.assignee).toBeUndefined();
     expect(jira.issues.get('X-1')!.statusCategory).toBe('todo');
+    expect(jira.issues.has(review!.key)).toBe(false);
   });
 
   it('ping leaves only a comment, so there is nothing to undo', async () => {

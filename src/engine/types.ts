@@ -38,6 +38,8 @@ export interface Issue {
   labels?: string[];
   /** ISO timestamp the issue was created. */
   createdAt?: string;
+  /** Fix versions (releases). Optional: only the response plan reads them. */
+  fixVersions?: { name: string; releaseDate?: string; released?: boolean }[];
 }
 
 export interface Transition {

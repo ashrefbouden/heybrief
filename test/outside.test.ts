@@ -59,8 +59,9 @@ describe('Outside incidents', () => {
     const a = await hb.alerts(ME.accountId, {});
     expect(a.speech).toContain('GitHub reports: Degraded performance for GitHub Actions');
     expect(a.speech).toContain('MP-12');
-    expect(a.speech).toMatch(/Want me to add a note about the GitHub outage to MP-12\?$/);
-    expect(a.changes).toHaveLength(1);
+    expect(a.speech).toMatch(/Want me to run the response plan: note the GitHub outage on MP-12, tell their owners, and open a tracking issue\?$/);
+    expect(a.changes).toHaveLength(2);
+    expect(a.changes![1]).toBe('New follow-up: Track GitHub outage: Degraded performance for GitHub Actions');
     expect(a.changes![0]).toMatch(/^Comment on MP-12: “Heads-up: GitHub reports/);
     expect(jira.writes()).toEqual([]);
     expect((await hb.alerts(ME.accountId, {})).speech).toBe(''); // a pending yes blocks a second interruption

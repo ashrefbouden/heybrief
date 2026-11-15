@@ -117,6 +117,8 @@ export function localBackend(): Backend {
         createdAt: now,
         priority: 'Highest',
         issueType: 'Incident',
+        // Ships in 3 days, so the response plan can name the release at risk.
+        fixVersions: [{ name: '2.4', releaseDate: new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10) }],
         reporter: jira.people.find((p) => p.accountId !== ME.accountId),
         flagged: false,
         blocks: [],

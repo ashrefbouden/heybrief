@@ -111,13 +111,46 @@ export async function createDemoIncident(): Promise<string> {
   const settings = await loadSettings();
   const pk = settings.projectKeys[0];
   if (!pk) throw new Error('Load demo data first.');
-  return forgeSeedPort(pk).createIssue({
+  const key = await forgeSeedPort(pk).createIssue({
     projectKey: pk,
     summary: 'Checkout API down in production',
     issueType: 'Task',
     priority: 'Highest',
     labels: ['heybrief-demo', 'incident'],
   } as Parameters<SeedPort['createIssue']>[0]);
+  await attachDemoRelease(pk, key).catch(() => undefined); // best effort: projects without releases still get the incident
+  return key;
+}
+
+/** Put the demo incident on a release that ships in 3 days, so the response plan can name the release at risk. */
+async function attachDemoRelease(pk: string, issueKey: string): Promise<void> {
+  const name = 'Demo release 2.4';
+  const releaseDate = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
+  const versions = await json<any[]>(await api.asUser().requestJira(route`/rest/api/3/project/${pk}/versions`, { headers: H }));
+  // Prefer a real release that ships within a week; otherwise the demo one, if it exists.
+  const soon = (v: any) => !v?.released && v?.releaseDate && Date.parse(v.releaseDate) - Date.now() < 7 * 86_400_000 && Date.parse(v.releaseDate) >= Date.now() - 86_400_000;
+  let id = ((versions ?? []).find(soon) ?? (versions ?? []).find((v) => v?.name === name && !v?.released))?.id as string | undefined;
+  if (!id) {
+    const project = await json<any>(await api.asUser().requestJira(route`/rest/api/3/project/${pk}`, { headers: H }));
+    const created = await json<any>(
+      await api.asUser().requestJira(route`/rest/api/3/version`, {
+        method: 'POST',
+        headers: H,
+        body: JSON.stringify({ name, projectId: Number(project.id), releaseDate, released: false }),
+      }),
+    );
+    // Creating a version needs the manage:jira-project scope, which HeyBrief does not ask for: on most
+    // installs this throws and the incident simply has no release. An admin can create the version by hand.
+    id = created?.id;
+  }
+  if (!id) return;
+  await json(
+    await api.asUser().requestJira(route`/rest/api/3/issue/${issueKey}`, {
+      method: 'PUT',
+      headers: H,
+      body: JSON.stringify({ fields: { fixVersions: [{ id }] } }),
+    }),
+  );
 }
 
 export async function seedDemoProject(accountId: string, projectKey: string) {

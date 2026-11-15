@@ -33,7 +33,7 @@ export interface Alert {
 }
 
 export interface AlertAction {
-  kind: 'take' | 'ping' | 'start' | 'unblock' | 'note';
+  kind: 'take' | 'ping' | 'start' | 'unblock' | 'note' | 'plan';
   /** Verb first, completes "Want me to ...?" */
   say: Record<Lang, string>;
   ops: Op[];

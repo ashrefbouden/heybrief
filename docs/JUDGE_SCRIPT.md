@@ -25,7 +25,7 @@ Open **Apps > HeyBrief** in the Jira top bar. Allow the microphone if asked.
 | 6 | Say "yes" | Team pulse updates live: changed rows flash. Each issue gets an audit comment naming you. |
 | 7 | Click **Undo** on that receipt | The statuses and the flag go back. Undo on step 4's receipt deletes the follow-up it created. Audit comments stay. |
 | 8 | Switch to **FR** or **عربي** and ask "Quels risques ?" or "ما هي المخاطر؟" | The answer, the yes card and the whole page switch language. Arabic switches the page to right to left. |
-| 9 | Click **Simulate P1 outage** (top right, admins) | It creates a real unassigned Highest-priority "Checkout API down in production" issue. Within seconds: a Heads-up banner and chime, spoken once, proposing to assign it to you and start it. Say yes, then Undo it from the receipt. |
+| 9 | Click **Simulate P1 outage** (top right, admins) | It creates a real unassigned Highest-priority "Checkout API down in production" issue. Within seconds: a Heads-up banner and chime, spoken once, proposing a **response plan**: assign it to you, start it, tell the team, open a post-incident review (and name the release at risk if the project has one shipping this week). Say yes, then Undo it from the receipt: the review issue is deleted too. |
 | 10 | Optional, admins: **Personal settings > HeyBrief > Outside incidents** on | When a public status page (GitHub, Cloudflare, Vercel...) reports an outage, and an open issue names that service, HeyBrief interrupts and proposes a note on that issue. Off by default. |
 
 ## Also try
